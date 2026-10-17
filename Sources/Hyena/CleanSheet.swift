@@ -127,22 +127,9 @@ struct CleanSheet: View {
     // MARK: Progress
 
     private var progress: some View {
-        VStack(spacing: 18) {
-            ZStack {
-                Circle().stroke(.primary.opacity(0.08), lineWidth: 10)
-                Circle()
-                    .trim(from: 0, to: Double(model.cleanProgress) / Double(max(model.cleanTotal, 1)))
-                    .stroke(Theme.accent.gradient, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.smooth, value: model.cleanProgress)
-                HyenaMark(size: 64)
-            }
-            .frame(width: 130, height: 130)
-            Text("Cleaning…").font(.title2.weight(.semibold))
-            Text("\(model.cleanProgress) of \(model.cleanTotal)").foregroundStyle(.secondary).monospacedDigit()
-        }
-        .padding(40)
-        .frame(maxWidth: .infinity)
+        CleaningAnimation()
+            .padding(.vertical, 34)
+            .frame(maxWidth: .infinity)
     }
 
     // MARK: Done
@@ -195,5 +182,94 @@ struct CleanSheet: View {
             .padding(.top, 8)
         }
         .padding(28)
+    }
+}
+
+/// The hyena eats each item as it's cleaned: the item's icon flies in from
+/// the ring and vanishes, the mark takes a bite, and the counter ticks up.
+private struct CleaningAnimation: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var morsels: [Morsel] = []
+    @State private var bites = 0
+
+    struct Morsel: Identifiable {
+        let id = UUID()
+        let finding: Finding
+        let angle: Double
+    }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            ZStack {
+                Circle().stroke(.primary.opacity(0.08), lineWidth: 10)
+                Circle()
+                    .trim(from: 0, to: Double(model.cleanProgress) / Double(max(model.cleanTotal, 1)))
+                    .stroke(Theme.accent.gradient, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.smooth, value: model.cleanProgress)
+
+                ForEach(morsels) { morsel in
+                    MorselView(morsel: morsel) { morsels.removeAll { $0.id == morsel.id } }
+                }
+
+                HyenaMark(size: 76)
+                    .keyframeAnimator(initialValue: 1.0, trigger: bites) { content, scale in
+                        content.scaleEffect(scale)
+                    } keyframes: { _ in
+                        // A quick chomp: squash, snap back.
+                        CubicKeyframe(0.88, duration: 0.09)
+                        SpringKeyframe(1.0, duration: 0.25, spring: .bouncy)
+                    }
+            }
+            .frame(width: 170, height: 170)
+
+            Text("Cleaning…").font(.title2.weight(.semibold))
+            Text(space(model.cleanedSoFar))
+                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(.smooth, value: model.cleanedSoFar)
+            Text(model.cleaningCurrent?.title ?? " ")
+                .font(.callout).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                .frame(maxWidth: 360)
+                .contentTransition(.opacity)
+            Text("\(model.cleanProgress) of \(model.cleanTotal)")
+                .font(.caption).foregroundStyle(.tertiary).monospacedDigit()
+        }
+        .onChange(of: model.cleanProgress) {
+            guard !reduceMotion, let finding = model.cleaningCurrent else { return }
+            morsels.append(Morsel(finding: finding, angle: Double.random(in: 0..<360)))
+            if morsels.count > 12 { morsels.removeFirst(morsels.count - 12) }
+            bites += 1
+        }
+    }
+}
+
+private struct MorselView: View {
+    let morsel: CleaningAnimation.Morsel
+    let done: () -> Void
+    @State private var eaten = false
+
+    var body: some View {
+        let radians = morsel.angle * .pi / 180
+        icon
+            .frame(width: 26, height: 26)
+            .offset(x: eaten ? 0 : cos(radians) * 92, y: eaten ? 0 : sin(radians) * 92)
+            .scaleEffect(eaten ? 0.2 : 1)
+            .opacity(eaten ? 0 : 1)
+            .rotationEffect(.degrees(eaten ? 25 : 0))
+            .onAppear {
+                withAnimation(.easeIn(duration: 0.55)) { eaten = true } completion: { done() }
+            }
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private var icon: some View {
+        if let image = Icons.icon(for: morsel.finding) {
+            Image(nsImage: image).resizable()
+        } else {
+            CategoryIcon(category: morsel.finding.category, size: 26)
+        }
     }
 }

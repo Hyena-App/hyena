@@ -103,6 +103,10 @@ extension MainWindow {
         case "simulators": route = .category(.simulators)
         case "ask": model.presentAskSheet = true
         case "clean": model.presentCleanSheet = true
+        case "cleaning":
+            model.presentCleanSheet = true
+            try? await Task.sleep(for: .milliseconds(600))
+            model.clean()   // demo mode only simulates
         default: break
         }
     }

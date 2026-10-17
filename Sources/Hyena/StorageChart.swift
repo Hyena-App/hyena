@@ -1,5 +1,4 @@
 import SwiftUI
-import Charts
 import HyenaCore
 
 /// Disk composition and where the cleanable space sits.
@@ -154,95 +153,158 @@ private struct DiskBar: View {
 
 // MARK: - Cleanable space by category
 
+/// Ranked, collapsible rows: each category's bar shows found (light) and
+/// selected (solid); expanding it lists its largest items.
 private struct CategoryBars: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.colorScheme) private var scheme
     @Binding var route: Route?
-    @State private var selected: String?
+    @State private var expanded: Set<CleanupCategory> = []
 
     struct Row: Identifiable {
-        var id: String { category.rawValue }
+        var id: CleanupCategory { category }
         let category: CleanupCategory
         let bytes: Int64
         let selectedBytes: Int64
+        let count: Int
+        let selectedCount: Int
     }
 
     private var rows: [Row] {
         model.visibleCategories
-            .map { Row(category: $0, bytes: model.totalBytes(in: $0), selectedBytes: model.selectedBytes(in: $0)) }
+            .map { Row(category: $0, bytes: model.totalBytes(in: $0), selectedBytes: model.selectedBytes(in: $0),
+                       count: model.findings(in: $0).count, selectedCount: model.selectedCount(in: $0)) }
             .filter { $0.bytes > 0 }
             .sorted { $0.bytes > $1.bytes }
     }
 
     var body: some View {
         let rows = rows
-        VStack(alignment: .leading, spacing: 10) {
+        let largest = Double(rows.first?.bytes ?? 1)
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Where the cleanable space is").font(.headline)
                 Spacer()
                 HStack(spacing: 14) {
                     legendSwatch(Theme.accent, "Selected to clean")
-                    legendSwatch(Theme.accent.opacity(0.3), "Found")
+                    legendSwatch(Theme.accent.opacity(0.28), "Found")
                 }
                 .font(.caption).foregroundStyle(.secondary)
             }
             if rows.isEmpty {
                 Text("Scan to see where space is going.").foregroundStyle(.secondary)
             } else {
-                Chart(rows) { row in
-                    // xStart/xEnd keeps the two bars overlapping; plain x would stack them end to end.
-                    BarMark(xStart: .value("Start", 0), xEnd: .value("Found", Double(row.bytes) / 1e9),
-                            y: .value("Category", row.category.title))
-                        .foregroundStyle(Theme.accent.opacity(0.3))
-                        .cornerRadius(4)
-                    BarMark(xStart: .value("Start", 0), xEnd: .value("Selected", Double(row.selectedBytes) / 1e9),
-                            y: .value("Category", row.category.title))
-                        .foregroundStyle(Theme.accent)
-                        .cornerRadius(4)
-                        .annotation(position: .trailing, alignment: .leading, spacing: 6) {
-                            Text(space(row.bytes))
-                                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                        }
-                        .opacity(selected == nil || selected == row.category.title ? 1 : 0.45)
-                }
-                .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                        AxisGridLine().foregroundStyle(.primary.opacity(0.06))
-                        AxisValueLabel { if let gb = value.as(Double.self) { Text("\(Int(gb)) GB") } }
+                VStack(spacing: 4) {
+                    ForEach(rows) { row in
+                        CategoryBarRow(row: row, largest: largest, isExpanded: expanded.contains(row.category),
+                                       toggle: { toggle(row.category) }, open: { route = .category(row.category) })
                     }
                 }
-                .chartYAxis {
-                    AxisMarks { _ in AxisValueLabel().font(.callout) }
-                }
-                .chartXScale(domain: 0...(Double(rows.first?.bytes ?? 1) / 1e9 * 1.18))
-                .chartOverlay { proxy in
-                    // Hover highlights a bar; only a click opens its category. Scrolling never navigates.
-                    Rectangle().fill(.clear).contentShape(Rectangle())
-                        .onContinuousHover { phase in
-                            if case .active(let location) = phase {
-                                selected = proxy.value(atY: location.y, as: String.self)
-                            } else {
-                                selected = nil
-                            }
-                        }
-                        .onTapGesture { location in
-                            guard let title = proxy.value(atY: location.y, as: String.self),
-                                  let row = rows.first(where: { $0.category.title == title }) else { return }
-                            route = .category(row.category)
-                        }
-                }
-                .frame(height: CGFloat(rows.count) * 30 + 24)
-                .accessibilityLabel("Cleanable space by category")
-                Text("Light bars show everything found; solid bars show what’s selected. Click a bar to review it.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private func toggle(_ category: CleanupCategory) {
+        withAnimation(.smooth(duration: 0.25)) {
+            if expanded.contains(category) { expanded.remove(category) } else { expanded.insert(category) }
         }
     }
 
     private func legendSwatch(_ color: Color, _ text: String) -> some View {
         HStack(spacing: 5) {
-            RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 10, height: 10)
+            RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 12, height: 12)
             Text(text)
         }
+    }
+}
+
+private struct CategoryBarRow: View {
+    @Environment(AppModel.self) private var model
+    let row: CategoryBars.Row
+    let largest: Double
+    let isExpanded: Bool
+    let toggle: () -> Void
+    let open: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: toggle) {
+                HStack(spacing: 12) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .frame(width: 12)
+                    CategoryIcon(category: row.category, size: 22)
+                    Text(row.category.title).font(.body.weight(.medium))
+                        .frame(width: 150, alignment: .leading).lineLimit(1)
+                    bar(found: Double(row.bytes), selected: Double(row.selectedBytes), height: 14)
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(space(row.bytes)).font(.callout.weight(.semibold)).monospacedDigit()
+                        Text("\(row.selectedCount) of \(row.count) selected")
+                            .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+                    }
+                    .frame(width: 110, alignment: .trailing)
+                }
+                .padding(.vertical, 8).padding(.horizontal, 8)
+                .background(hovering || isExpanded ? Color.primary.opacity(0.05) : .clear,
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering = $0 }
+            .accessibilityLabel("\(row.category.title), \(space(row.bytes)) found, \(space(row.selectedBytes)) selected")
+            .accessibilityHint(isExpanded ? "Collapse" : "Show largest items")
+
+            if isExpanded {
+                details.transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    private var details: some View {
+        let items = model.findings(in: row.category).sorted { $0.bytes > $1.bytes }
+        let top = Array(items.prefix(5))
+        let maxItem = Double(top.first?.bytes ?? 1)
+        return VStack(alignment: .leading, spacing: 6) {
+            ForEach(top) { finding in
+                HStack(spacing: 10) {
+                    TriStateCheckbox(state: model.state(of: finding), label: "Select \(finding.title)") {
+                        model.toggle(finding)
+                    }
+                    Text(finding.title).font(.callout).lineLimit(1).truncationMode(.middle)
+                        .frame(width: 210, alignment: .leading)
+                    bar(found: Double(finding.bytes), selected: Double(model.selection.selectedBytes(of: finding)),
+                        height: 8, scale: maxItem)
+                    Text(space(finding.bytes)).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                        .frame(width: 70, alignment: .trailing)
+                }
+            }
+            HStack {
+                if items.count > top.count {
+                    Text("and \(items.count - top.count) more").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Review all \(items.count)…", action: open).buttonStyle(.link).font(.callout)
+            }
+        }
+        .padding(.leading, 56).padding(.trailing, 8).padding(.bottom, 10).padding(.top, 2)
+    }
+
+    /// Found (light) with selected (solid) overlaid from the same origin.
+    private func bar(found: Double, selected: Double, height: CGFloat, scale: Double? = nil) -> some View {
+        GeometryReader { proxy in
+            let total = max(scale ?? largest, 1)
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: height / 3).fill(Theme.accent.opacity(0.28))
+                    .frame(width: max(height / 2, proxy.size.width * found / total))
+                if selected > 0 {
+                    RoundedRectangle(cornerRadius: height / 3).fill(Theme.accent)
+                        .frame(width: max(height / 2, proxy.size.width * selected / total))
+                }
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .frame(height: height)
+        .animation(.smooth, value: selected)
     }
 }

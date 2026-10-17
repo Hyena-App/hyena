@@ -78,6 +78,9 @@ final class AppModel {
     var measured: [CleanupCategory: (bytes: Int64, count: Int)] = [:]
     var cleanProgress = 0
     var cleanTotal = 0
+    /// The item being cleaned right now, and bytes handled so far (drives the animation).
+    var cleaningCurrent: Finding?
+    var cleanedSoFar: Int64 = 0
     var lastResult: CleanResult?
 
     // MARK: Storage
@@ -431,6 +434,8 @@ final class AppModel {
         let permanent = deleteImmediately
         phase = .cleaning
         cleanProgress = 0
+        cleanedSoFar = 0
+        cleaningCurrent = nil
         cleanTotal = plans.count
         lastResult = nil
 
@@ -450,7 +455,13 @@ final class AppModel {
             )
             let outcome = await Task.detached(priority: .userInitiated) {
                 CleanupExecutor.execute(plans, exclusions: exclusions, handlers: handlers) { index in
-                    Task { @MainActor [weak self] in self?.cleanProgress = index + 1 }
+                    let finding = plans[index].finding
+                    let done = plans[..<index].reduce(Int64(0)) { $0 + $1.bytes }
+                    Task { @MainActor [weak self] in
+                        self?.cleanProgress = index + 1
+                        self?.cleaningCurrent = finding
+                        self?.cleanedSoFar = done
+                    }
                 }
             }.value
 
@@ -697,9 +708,12 @@ final class AppModel {
         cleanTotal = chosen.count
         cleanProgress = 0
         Task {
-            for index in chosen.indices {
-                try? await Task.sleep(for: .milliseconds(40))
+            cleanedSoFar = 0
+            for (index, finding) in chosen.enumerated() {
+                cleaningCurrent = finding
                 cleanProgress = index + 1
+                try? await Task.sleep(for: .milliseconds(140))
+                cleanedSoFar += selection.selectedBytes(of: finding)
             }
             let moved = chosen.filter { $0.action == .moveToTrash }.reduce(0) { $0 + selection.selectedBytes(of: $1) }
             let freed = chosen.filter { $0.action == .deletePermanently }.reduce(0) { $0 + selection.selectedBytes(of: $1) }
