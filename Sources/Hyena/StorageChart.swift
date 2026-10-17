@@ -69,6 +69,7 @@ private struct DiskBar: View {
         for group in CleanupGroup.allCases {
             let bytes = model.findings.filter { $0.category.group == group }.reduce(0) { $0 + $1.bytes }
             found += bytes
+            guard bytes > 0 else { continue }
             result.append(Segment(id: group.rawValue, label: label(for: group), bytes: bytes,
                                   color: ChartPalette.color(for: group, scheme: scheme), isFree: false))
         }
@@ -189,10 +190,13 @@ private struct CategoryBars: View {
                 Text("Scan to see where space is going.").foregroundStyle(.secondary)
             } else {
                 Chart(rows) { row in
-                    BarMark(x: .value("Found", Double(row.bytes) / 1e9), y: .value("Category", row.category.title))
+                    // xStart/xEnd keeps the two bars overlapping; plain x would stack them end to end.
+                    BarMark(xStart: .value("Start", 0), xEnd: .value("Found", Double(row.bytes) / 1e9),
+                            y: .value("Category", row.category.title))
                         .foregroundStyle(Theme.accent.opacity(0.3))
                         .cornerRadius(4)
-                    BarMark(x: .value("Selected", Double(row.selectedBytes) / 1e9), y: .value("Category", row.category.title))
+                    BarMark(xStart: .value("Start", 0), xEnd: .value("Selected", Double(row.selectedBytes) / 1e9),
+                            y: .value("Category", row.category.title))
                         .foregroundStyle(Theme.accent)
                         .cornerRadius(4)
                         .annotation(position: .trailing, alignment: .leading, spacing: 6) {
@@ -211,13 +215,23 @@ private struct CategoryBars: View {
                     AxisMarks { _ in AxisValueLabel().font(.callout) }
                 }
                 .chartXScale(domain: 0...(Double(rows.first?.bytes ?? 1) / 1e9 * 1.18))
-                .chartYSelection(value: $selected)
-                .frame(height: CGFloat(rows.count) * 30 + 24)
-                .onChange(of: selected) { _, title in
-                    // Clicking a bar opens that category.
-                    guard let title, let row = rows.first(where: { $0.category.title == title }) else { return }
-                    route = .category(row.category)
+                .chartOverlay { proxy in
+                    // Hover highlights a bar; only a click opens its category. Scrolling never navigates.
+                    Rectangle().fill(.clear).contentShape(Rectangle())
+                        .onContinuousHover { phase in
+                            if case .active(let location) = phase {
+                                selected = proxy.value(atY: location.y, as: String.self)
+                            } else {
+                                selected = nil
+                            }
+                        }
+                        .onTapGesture { location in
+                            guard let title = proxy.value(atY: location.y, as: String.self),
+                                  let row = rows.first(where: { $0.category.title == title }) else { return }
+                            route = .category(row.category)
+                        }
                 }
+                .frame(height: CGFloat(rows.count) * 30 + 24)
                 .accessibilityLabel("Cleanable space by category")
                 Text("Light bars show everything found; solid bars show what’s selected. Click a bar to review it.")
                     .font(.caption).foregroundStyle(.secondary)

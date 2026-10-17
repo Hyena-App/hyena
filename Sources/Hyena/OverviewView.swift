@@ -171,8 +171,10 @@ private struct StorageLegend: View {
     var body: some View {
         let cleanable = min(model.selectedBytes, model.usedBytes)
         HStack(spacing: 14) {
-            item(color: .primary.opacity(0.5), label: "Used", value: model.usedBytes - cleanable)
-            item(color: Theme.accent, label: "To clean", value: cleanable)
+            // "Used" is the whole used space everywhere in the app; the ring shows the
+            // ready-to-clean part of it in amber.
+            item(color: .primary.opacity(0.5), label: "Used", value: model.usedBytes)
+            item(color: Theme.accent, label: "Ready to clean", value: cleanable)
             item(color: .primary.opacity(0.12), label: "Free", value: model.available)
             Text("of \(space(model.capacity)) · Macintosh HD")
                 .foregroundStyle(.tertiary)

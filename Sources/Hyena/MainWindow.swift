@@ -220,18 +220,40 @@ struct StorageSummary: View {
     var compact = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 6 : 10) {
-            HStack(alignment: .top, spacing: 0) {
-                stat("Used", space(model.usedBytes), StorageColors.used)
-                Spacer(minLength: 8)
-                stat("Ready to clean", model.lastScan == nil ? "—" : space(model.readyToCleanBytes), StorageColors.cleanable)
-                Spacer(minLength: 8)
-                stat("Available", space(model.available), StorageColors.free, outlined: true)
+        VStack(alignment: .leading, spacing: compact ? 8 : 10) {
+            if compact {
+                // Narrow sidebar: one row per figure, label left, value right.
+                VStack(spacing: 5) {
+                    row("Used", space(model.usedBytes), StorageColors.used)
+                    row("Ready to clean", model.lastScan == nil ? "—" : space(model.readyToCleanBytes), StorageColors.cleanable)
+                    row("Available", space(model.available), StorageColors.free, outlined: true)
+                }
+            } else {
+                HStack(alignment: .top, spacing: 0) {
+                    stat("Used", space(model.usedBytes), StorageColors.used)
+                    Spacer(minLength: 8)
+                    stat("Ready to clean", model.lastScan == nil ? "—" : space(model.readyToCleanBytes), StorageColors.cleanable)
+                    Spacer(minLength: 8)
+                    stat("Available", space(model.available), StorageColors.free, outlined: true)
+                }
             }
             StorageBar(height: compact ? 6 : 10)
             Text("of \(space(model.capacity)) on Macintosh HD")
                 .font(.caption2).foregroundStyle(.secondary)
         }
+    }
+
+    private func row(_ label: String, _ value: String, _ color: Color, outlined: Bool = false) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(color)
+                .overlay { if outlined { Circle().strokeBorder(.secondary.opacity(0.6)) } }
+                .frame(width: 8, height: 8)
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(value).font(.callout.weight(.semibold)).monospacedDigit()
+                .contentTransition(.numericText())
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func stat(_ label: String, _ value: String, _ color: Color, outlined: Bool = false) -> some View {
