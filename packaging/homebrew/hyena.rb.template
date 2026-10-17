@@ -1,0 +1,26 @@
+cask "hyena" do
+  version "__VERSION__"
+  sha256 "__SHA256__"
+
+  url "https://github.com/__REPO__/releases/download/v#{version}/Hyena-#{version}.dmg"
+  name "Hyena"
+  desc "Open-source Mac cleaner for caches, installers, backups, simulators and builds"
+  homepage "https://hyena-app.github.io"
+
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
+  depends_on arch: :arm64
+  depends_on macos: ">= :sonoma"
+
+  app "Hyena.app"
+
+  uninstall quit: "com.hyena.cleaner"
+
+  zap trash: [
+    "~/Library/Preferences/com.hyena.cleaner.plist",
+    "~/Library/Preferences/com.hyena.demo.plist",
+  ]
+end

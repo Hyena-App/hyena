@@ -117,12 +117,23 @@ struct HyenaMark: View {
     var size: CGFloat = 36
     /// Adds the standard macOS icon drop shadow (used for exported icons).
     var iconShadow = false
+    /// Fills the whole square edge to edge (GitHub avatars crop their own shape).
+    var fullBleed = false
 
     var body: some View {
         Canvas { context, canvasSize in
-            let scale = canvasSize.width / LogoArtwork.canvas
-            context.scaleBy(x: scale, y: scale)
-            let body = Path(roundedRect: LogoArtwork.body, cornerRadius: LogoArtwork.cornerRadius, style: .continuous)
+            if fullBleed {
+                // Map the 824-pt icon body onto the whole canvas.
+                let scale = canvasSize.width / LogoArtwork.body.width
+                context.scaleBy(x: scale, y: scale)
+                context.translateBy(x: -LogoArtwork.body.minX, y: -LogoArtwork.body.minY)
+            } else {
+                let scale = canvasSize.width / LogoArtwork.canvas
+                context.scaleBy(x: scale, y: scale)
+            }
+            let body = fullBleed
+                ? Path(LogoArtwork.body)
+                : Path(roundedRect: LogoArtwork.body, cornerRadius: LogoArtwork.cornerRadius, style: .continuous)
 
             if iconShadow {
                 var shadow = context
@@ -143,6 +154,7 @@ struct HyenaMark: View {
                     }
                 }
             }
+            if fullBleed { return }
             context.stroke(
                 Path(roundedRect: LogoArtwork.body.insetBy(dx: 1, dy: 1), cornerRadius: LogoArtwork.cornerRadius - 1,
                      style: .continuous),
@@ -194,8 +206,18 @@ enum HyenaGlyph {
 }
 
 /// `Hyena --render-icon <iconset-dir>` writes the app icon PNGs.
+/// `Hyena --render-avatar <file.png>` writes a 1024 px edge-to-edge avatar.
 @MainActor
 enum IconExporter {
+    static func avatar(output: String) -> Int32 {
+        let renderer = ImageRenderer(content: HyenaMark(size: 1024, fullBleed: true))
+        renderer.scale = 1
+        guard let cgImage = renderer.cgImage,
+              let png = NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:]) else { return 1 }
+        do { try png.write(to: URL(fileURLWithPath: output)) } catch { return 1 }
+        return 0
+    }
+
     static func run(output: String) -> Int32 {
         let directory = URL(fileURLWithPath: output, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

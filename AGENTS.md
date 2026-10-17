@@ -89,6 +89,23 @@ Hyena deletes files. A bug that removes the wrong thing is a security issue (see
 - `capture-screens.sh` positions the window clear of notification banners, hides the cursor in a corner, crops and rounds corners. Look at every capture before publishing: real paths, usernames, tooltips or notifications must never leak. Screen capture returns black while the screen is locked.
 - `cacheDisplay`-style self-capture does not render SwiftUI layers; don't use it.
 
+## CI and releases
+
+Modeled on Get-Lizard's pipeline.
+
+- `.github/workflows/ci.yml` runs on every push to `main` and on every pull request (macOS 26 runner, Xcode 26.2). It runs `swift test`, checks that the logo outputs match `scripts/generate-logo.py`, builds the app, and uploads a zipped `.app` artifact.
+- `.github/workflows/release.yml` runs on a `v*` tag or a manual dispatch. It calls `scripts/release.sh` to stamp the version, sign, build and notarize the DMG, and print its checksum. It then publishes a GitHub Release with `Hyena-<version>.dmg` and a stable `Hyena.dmg` (`releases/latest/download/Hyena.dmg`), and updates `Hyena-App/homebrew-tap`.
+- Secrets are optional; each step runs only when its secret exists:
+  - `DEVELOPER_ID_CERTIFICATE_P12` (base64) and `DEVELOPER_ID_CERTIFICATE_PASSWORD`: Developer ID signing with hardened runtime and `Resources/Hyena.entitlements`. Without them the build is ad-hoc signed.
+  - `NOTARY_KEY_P8` (base64), `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`: notarization with an App Store Connect API key.
+  - `HOMEBREW_TAP_DEPLOY_KEY`: write deploy key for the tap. Deploy keys must first be allowed in the org settings.
+- Local dry run: `VERSION=0.0.0 zsh scripts/release.sh` builds `dist/Hyena-0.0.0.dmg`.
+- Never echo secrets, and keep cleanup steps that delete the keychain and key files.
+
+## Brand assets
+
+`zsh scripts/render-brand.sh` renders `brand/social-preview.png` (1280×640, repo social preview), `brand/banner.png` (1600×600, org profile) and `brand/avatar.png` (1024², org picture, edge to edge via `--render-avatar`) from `brand/card.html` with headless Chrome. GitHub has no API for avatars or social previews, so upload those two in the web UI. The banner lives in `Hyena-App/.github/profile/hyena.png`.
+
 ## Logo
 
 `scripts/generate-logo.py` is the source of truth. It emits `Resources/Hyena.svg` and `Sources/Hyena/LogoArtwork.swift`. The build renders the `.icns` from that Swift code (`Hyena --render-icon`), so the icon, in-app mark and menu-bar glyph always match.

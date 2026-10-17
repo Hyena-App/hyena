@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.2
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app || xcodebuild -version
+
+      - name: Core tests
+        run: swift test
+
+      - name: Logo outputs match their generator
+        run: |
+          python3 scripts/generate-logo.py
+          git diff --exit-code Resources/Hyena.svg Sources/Hyena/LogoArtwork.swift
+
+      - name: Build the app (ad-hoc signed)
+        run: zsh scripts/build-app.sh
+
+      - name: Package the build
+        run: ditto -c -k --keepParent dist/Hyena.app Hyena-${{ github.sha }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hyena-${{ github.sha }}
+          path: Hyena-${{ github.sha }}.zip
+          retention-days: 14

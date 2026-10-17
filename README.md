@@ -49,6 +49,12 @@ The model never selects or deletes anything on its own. For a quick check of the
 
 `scripts/generate-logo.py` is the source of truth. It writes `Resources/Hyena.svg` and `Sources/Hyena/LogoArtwork.swift`. The app draws the mark from vectors, and the build script exports the `.icns` from the same code.
 
+## Download
+
+Tagged releases publish a DMG at [Releases](https://github.com/Hyena-App/hyena/releases). Until the first signed release, build from source as shown above.
+
+[![CI](https://github.com/Hyena-App/hyena/actions/workflows/ci.yml/badge.svg)](https://github.com/Hyena-App/hyena/actions/workflows/ci.yml)
+
 ## Status
 
 Early and in active development. There's no signed release yet, so build it yourself with the script above. Keep backups, and review before cleaning.

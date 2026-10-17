@@ -6,6 +6,9 @@ import HyenaCore
 enum Entry {
     static func main() {
         let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--render-avatar"), index + 1 < arguments.count {
+            exit(MainActor.assumeIsolated { IconExporter.avatar(output: arguments[index + 1]) })
+        }
         if let index = arguments.firstIndex(of: "--render-icon"), index + 1 < arguments.count {
             exit(MainActor.assumeIsolated { IconExporter.run(output: arguments[index + 1]) })
         }

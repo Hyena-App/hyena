@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- Source for brand/social-preview.png and brand/banner.png. Render with scripts/render-brand.sh. -->
+<html><head><meta charset="utf-8">
+<link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,800&display=block" rel="stylesheet">
+<style>
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; }
+  body { background: #c96f1f; font-family: "Cabinet Grotesk", sans-serif; color: #111220; position: relative; }
+  .mark { position: absolute; top: 6vh; left: 5vw; display: flex; align-items: center; gap: 1.6vh; font-weight: 500; font-size: 3.6vh; }
+  .mark img { width: 6vh; height: 6vh; border-radius: 1.4vh; }
+  h1 { position: absolute; left: 4.6vw; top: 22vh; font-weight: 800; letter-spacing: -0.04em; line-height: 0.84; font-size: var(--title, 24vh); }
+  h1 .light { color: #fff; display: block; }
+  p { position: absolute; left: 5vw; bottom: 9vh; font-size: var(--lead, 4.6vh); font-weight: 500; max-width: 24ch; line-height: 1.2; }
+  .window { position: absolute; right: -6vw; bottom: -14vh; width: var(--window, 60vw); }
+  .window img { width: 100%; display: block; }
+</style></head>
+<body>
+  <div class="mark"><img src="../Resources/Hyena.iconset/icon_256x256.png" alt=""><span>github.com/Hyena-App</span></div>
+  <h1><span class="light">Hyena</span>scavenges.</h1>
+  <p>The open-source Mac cleaner. Caches, installers, backups, simulators and builds.</p>
+  <div class="window"><img src="../docs/screens/overview.png" alt=""></div>
+</body></html>
