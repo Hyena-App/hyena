@@ -8,6 +8,13 @@ public struct FileEntry: Identifiable, Sendable, Hashable {
     public let bytes: Int64
     public let modified: Date
     public var name: String { url.lastPathComponent }
+
+    public init(url: URL, isDirectory: Bool, bytes: Int64, modified: Date) {
+        self.url = url
+        self.isDirectory = isDirectory
+        self.bytes = bytes
+        self.modified = modified
+    }
 }
 
 public enum DirectoryInspector {

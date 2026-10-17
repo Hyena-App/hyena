@@ -9,9 +9,10 @@ struct OverviewView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 Hero()
+                if model.lastScan != nil && !model.scanning { StorageChartCard(route: $route) }
                 if !model.insights.isEmpty && !model.scanning { InsightsCard() }
                 if !model.scanning { SuggestionsCard() }
-                if model.needsFullDiskAccess && model.categories.contains(.trash) {
+                if model.needsFullDiskAccess && (model.categories.contains(.trash) || model.categories.contains(.devices)) {
                     PermissionBanner()
                 }
                 if model.lastScan != nil || model.scanning {
@@ -316,8 +317,8 @@ struct PermissionBanner: View {
         HStack(spacing: 14) {
             Image(systemName: "lock.shield.fill").font(.title).foregroundStyle(Theme.accent)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Allow Full Disk Access to look inside Trash").font(.headline)
-                Text("macOS protects Trash. Grant access in System Settings, then scan again. You can still empty Trash with Finder.")
+                Text("Allow Full Disk Access to see Trash and device backups").font(.headline)
+                Text("macOS protects these folders. Grant access in System Settings, then scan again. You can still empty Trash with Finder.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer()

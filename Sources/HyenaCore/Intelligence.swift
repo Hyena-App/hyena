@@ -438,6 +438,9 @@ public struct ItemFacts: Sendable, Equatable {
         case .trash: "Items in Trash are deleted permanently."
         case .snapshots: "This local snapshot is removed. Backups on your Time Machine disk aren’t affected."
         case .xcode: "Xcode regenerates this when needed. Expect a slower next build or device connection."
+        case .simulators: "The simulator and every app and file inside it are erased. Xcode can create a fresh one."
+        case .downloads: "The file goes to Trash. Installers aren’t needed once the app is installed."
+        case .devices: "A backup is removed for good once Trash is emptied. Keep it unless you have a newer one or iCloud Backup."
         case .packageCaches: "Packages are downloaded again the next time a project needs them."
         case .projects: "Your next build regenerates this."
         }

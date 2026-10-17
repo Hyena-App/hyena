@@ -268,14 +268,96 @@ public enum SystemScanner {
                             bundleID: "com.apple.dt.Xcode")
                 }
             }
-            let simulatorCaches = developer.appendingPathComponent("CoreSimulator/Caches")
-            try add(simulatorCaches, root: developer, title: "Simulator caches", bundleID: "com.apple.iphonesimulator")
             let previews = xcode.appendingPathComponent("UserData/Previews")
             try add(previews, root: xcode, title: "SwiftUI preview simulators", recommended: !xcodeOpen,
                     note: busy, bundleID: "com.apple.dt.Xcode")
             let testDevices = developer.appendingPathComponent("XCTestDevices")
             try add(testDevices, root: developer, title: "Test device clones", recommended: !xcodeOpen,
                     note: busy, bundleID: "com.apple.dt.Xcode")
+
+        case .simulators:
+            let core = library.appendingPathComponent("Developer/CoreSimulator")
+            let devices = core.appendingPathComponent("Devices")
+            let availability = Simulators.availability()
+            let simulatorOpen = options.apps.isRunning("com.apple.iphonesimulator")
+            let staleCutoff = Date().addingTimeInterval(-90 * 86_400)
+            for url in children(of: devices) where isDirectory(url) {
+                guard let device = Simulators.device(at: url) else { continue }
+                let unavailable = availability[device.udid] == false
+                let booted = device.state == 3
+                var note: String
+                var recommended = false
+                if booted {
+                    note = "Running now. Shut it down before cleaning."
+                } else if unavailable {
+                    note = "Its iOS runtime is no longer installed, so it can’t run."
+                    recommended = !simulatorOpen
+                } else if let last = device.lastBooted, last < staleCutoff {
+                    note = "Not used since \(last.formatted(date: .abbreviated, time: .omitted)). Erases its apps and data."
+                } else {
+                    note = "Erases this simulator’s apps and data."
+                }
+                try add(url, root: devices, title: "\(device.name) · \(device.runtimeName)", recommended: recommended,
+                        note: note, bundleID: "com.apple.iphonesimulator")
+            }
+            try add(core.appendingPathComponent("Caches"), root: core, title: "Simulator caches",
+                    recommended: !simulatorOpen, note: simulatorOpen ? "Simulator is open. Quit it first." : nil,
+                    bundleID: "com.apple.iphonesimulator")
+
+        case .downloads:
+            let root = home.appendingPathComponent("Downloads")
+            let installerCutoff = Date().addingTimeInterval(-7 * 86_400)
+            let oldCutoff = Date().addingTimeInterval(-90 * 86_400)
+            do {
+                let items = try FileManager.default.contentsOfDirectory(
+                    at: root, includingPropertiesForKeys: [.contentModificationDateKey, .isSymbolicLinkKey], options: []
+                )
+                for url in items where url.lastPathComponent != ".DS_Store" && !url.lastPathComponent.hasPrefix(".") {
+                    let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                        .contentModificationDate ?? Date()
+                    if Downloads.installerExtensions.contains(url.pathExtension.lowercased()) {
+                        guard modified < installerCutoff else { continue }
+                        try add(url, root: root, recommended: true,
+                                note: "Installer. Whatever it installed stays.", minimum: 1_000_000)
+                    } else if modified < oldCutoff {
+                        let months = Int(Date().timeIntervalSince(modified) / (30 * 86_400))
+                        try add(url, root: root, recommended: false,
+                                note: "Untouched for \(months) months. Make sure you don’t need it.", minimum: 100_000_000)
+                    }
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                report.warnings.append("Couldn’t read Downloads: \(error.localizedDescription)")
+            }
+
+        case .devices:
+            let backups = library.appendingPathComponent("Application Support/MobileSync/Backup")
+            if FileManager.default.fileExists(atPath: backups.path) {
+                do {
+                    let items = try FileManager.default.contentsOfDirectory(at: backups, includingPropertiesForKeys: nil)
+                    for url in items where isDirectory(url) {
+                        let info = DeviceBackups.info(at: url)
+                        let age = info.date.map { $0.formatted(date: .abbreviated, time: .omitted) } ?? "unknown date"
+                        let old = info.date.map { $0 < Date().addingTimeInterval(-365 * 86_400) } ?? false
+                        try add(url, root: backups, title: "\(info.name) · backed up \(age)", recommended: false,
+                                note: old ? "Over a year old. Keep it only if it’s your only copy."
+                                          : "May be your only copy of this device. Review carefully.",
+                                minimum: 0)
+                    }
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    report.needsFullDiskAccess = true
+                }
+            }
+            for folder in ["iPhone Software Updates", "iPad Software Updates", "iPod Software Updates"] {
+                let updates = library.appendingPathComponent("iTunes/\(folder)")
+                for url in children(of: updates) where url.pathExtension == "ipsw" {
+                    try add(url, root: updates, title: "\(url.deletingPathExtension().lastPathComponent) (iOS update file)",
+                            recommended: true, note: "Downloaded once to update a device. Not needed afterwards.")
+                }
+            }
 
         case .packageCaches:
             for cache in packageCaches {
@@ -341,6 +423,69 @@ public enum SystemScanner {
         let parts = id.split(separator: ".")
         let last = parts.last.map(String.init) ?? id
         return last.prefix(1).uppercased() + last.dropFirst()
+    }
+}
+
+// MARK: - Simulators, downloads and device backups
+
+public enum Simulators {
+    public struct Device: Sendable {
+        public let udid: String
+        public let name: String
+        public let runtimeName: String
+        public let lastBooted: Date?
+        public let state: Int
+    }
+
+    /// Reads a simulator's device.plist.
+    public static func device(at url: URL) -> Device? {
+        guard let data = try? Data(contentsOf: url.appendingPathComponent("device.plist")),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              let udid = plist["UDID"] as? String, let name = plist["name"] as? String,
+              (plist["isDeleted"] as? Bool) != true else { return nil }
+        return Device(
+            udid: udid, name: name, runtimeName: runtimeName(plist["runtime"] as? String ?? ""),
+            lastBooted: plist["lastBootedAt"] as? Date, state: plist["state"] as? Int ?? 0
+        )
+    }
+
+    /// "com.apple.CoreSimulator.SimRuntime.iOS-26-2" → "iOS 26.2"
+    public static func runtimeName(_ identifier: String) -> String {
+        guard let last = identifier.split(separator: ".").last else { return "Unknown runtime" }
+        let parts = last.split(separator: "-")
+        guard let platform = parts.first, parts.count > 1 else { return String(last) }
+        return "\(platform) " + parts.dropFirst().joined(separator: ".")
+    }
+
+    /// UDID → whether CoreSimulator can still run it. Empty when Xcode tools are missing.
+    public static func availability() -> [String: Bool] {
+        guard FileManager.default.fileExists(atPath: "/usr/bin/xcrun"),
+              let result = try? Snapshots.run("/usr/bin/xcrun", ["simctl", "list", "devices", "-j"]),
+              result.status == 0,
+              let json = try? JSONSerialization.jsonObject(with: Data(result.output.utf8)) as? [String: Any],
+              let runtimes = json["devices"] as? [String: [[String: Any]]] else { return [:] }
+        var map: [String: Bool] = [:]
+        for devices in runtimes.values {
+            for device in devices {
+                if let udid = device["udid"] as? String { map[udid] = device["isAvailable"] as? Bool ?? true }
+            }
+        }
+        return map
+    }
+}
+
+public enum Downloads {
+    public static let installerExtensions: Set<String> = ["dmg", "pkg", "mpkg", "iso", "xip", "ipsw"]
+}
+
+public enum DeviceBackups {
+    /// Device name and backup date from a backup's Info.plist.
+    public static func info(at url: URL) -> (name: String, date: Date?) {
+        guard let data = try? Data(contentsOf: url.appendingPathComponent("Info.plist")),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { return ("Device backup", nil) }
+        let name = plist["Device Name"] as? String ?? plist["Display Name"] as? String ?? "Device backup"
+        return (name, plist["Last Backup Date"] as? Date)
     }
 }
 

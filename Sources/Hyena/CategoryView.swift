@@ -15,7 +15,7 @@ struct CategoryView: View {
                 CategoryHeader(category: category)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
-                if category == .trash && model.needsFullDiskAccess {
+                if (category == .trash || category == .devices) && model.needsFullDiskAccess {
                     PermissionBanner().listRowSeparator(.hidden)
                 }
                 if category == .projects && model.roots.isEmpty {
@@ -43,6 +43,17 @@ struct CategoryView: View {
         .searchable(text: $query, placement: .toolbar, prompt: "Filter \(category.title)")
         .navigationTitle(category.title)
         .onChange(of: category) { expanded = []; query = "" }
+        .onAppear {
+            guard DemoData.screen == "tree", category == .projects,
+                  let web = model.findings(in: .projects).first(where: { $0.url.lastPathComponent == "node_modules" })
+            else { return }
+            let cache = web.url.appendingPathComponent(".cache")
+            model.loadChildren(of: web.url)
+            model.loadChildren(of: cache)
+            expanded = [web.url.path, cache.path]
+            model.toggle(FileEntry(url: web.url.appendingPathComponent("prisma"), isDirectory: true, bytes: 0,
+                                   modified: Date()), in: web)
+        }
     }
 
     private var filtered: [Finding] {
@@ -197,6 +208,12 @@ private struct FindingRow: View {
         .opacity(state == .off ? 0.7 : 1)
         .onTapGesture(count: 2) { reveal() }
         .onHover { hovering = $0 }
+        .task {
+            if DemoData.screen == "explain", finding.title == "npm" {
+                try? await Task.sleep(for: .milliseconds(500))
+                explaining = true
+            }
+        }
         .contextMenu { menu }
         .help(finding.kind?.consequence ?? finding.url.path)
     }

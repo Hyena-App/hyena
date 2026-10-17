@@ -13,6 +13,7 @@
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSDownloadsFolderUsageDescription</key><string>Hyena looks for old installers and large files you haven’t opened in months. Nothing is removed without your review.</string>
     <key>NSAppleEventsUsageDescription</key><string>Hyena asks Finder to empty the Trash when you choose Empty Trash.</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
 </dict>

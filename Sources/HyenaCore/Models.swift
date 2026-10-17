@@ -117,7 +117,7 @@ public enum CleanupGroup: String, CaseIterable, Sendable, Identifiable {
     public var id: String { rawValue }
     public var title: String {
         switch self {
-        case .system: "System"
+        case .system: "Everyday"
         case .developer: "Developer"
         case .projects: "Projects"
         }
@@ -125,16 +125,16 @@ public enum CleanupGroup: String, CaseIterable, Sendable, Identifiable {
 }
 
 public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiable {
-    case userCaches, logs, appSupportCaches, appLeftovers, trash, snapshots
-    case xcode, packageCaches
+    case userCaches, logs, appSupportCaches, appLeftovers, downloads, devices, trash, snapshots
+    case xcode, simulators, packageCaches
     case projects
 
     public var id: String { rawValue }
 
     public var group: CleanupGroup {
         switch self {
-        case .userCaches, .logs, .appSupportCaches, .appLeftovers, .trash, .snapshots: .system
-        case .xcode, .packageCaches: .developer
+        case .userCaches, .logs, .appSupportCaches, .appLeftovers, .downloads, .devices, .trash, .snapshots: .system
+        case .xcode, .simulators, .packageCaches: .developer
         case .projects: .projects
         }
     }
@@ -145,9 +145,12 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
         case .logs: "Logs"
         case .appSupportCaches: "Application Support"
         case .appLeftovers: "Leftovers"
+        case .downloads: "Downloads"
+        case .devices: "iPhone & iPad"
         case .trash: "Trash"
         case .snapshots: "Snapshots"
         case .xcode: "Xcode"
+        case .simulators: "Simulators"
         case .packageCaches: "Package Caches"
         case .projects: "Project Builds"
         }
@@ -159,9 +162,12 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
         case .logs: "doc.text.magnifyingglass"
         case .appSupportCaches: "square.stack.3d.up"
         case .appLeftovers: "puzzlepiece.extension"
+        case .downloads: "arrow.down.circle"
+        case .devices: "iphone"
         case .trash: "trash"
         case .snapshots: "clock.arrow.circlepath"
         case .xcode: "hammer"
+        case .simulators: "ipad.and.iphone"
         case .packageCaches: "shippingbox"
         case .projects: "folder.badge.gearshape"
         }
@@ -173,9 +179,12 @@ public enum CleanupCategory: String, Codable, CaseIterable, Sendable, Identifiab
         case .logs: "Diagnostic logs from apps and tools."
         case .appSupportCaches: "Caches tucked inside Application Support. App data stays."
         case .appLeftovers: "Data from apps that no longer seem installed. Review carefully."
+        case .downloads: "Old installers and large files you haven’t touched in months."
+        case .devices: "iPhone and iPad backups and leftover iOS update files."
         case .trash: "Items already in Trash. Emptying is permanent."
         case .snapshots: "Local Time Machine snapshots. Your backup disk is not touched."
-        case .xcode: "DerivedData, device support files, simulator caches and archives."
+        case .xcode: "DerivedData, device support files, previews and archives."
+        case .simulators: "iOS simulators and their caches. Deleting one erases its apps and data."
         case .packageCaches: "Download caches from npm, Cargo, Gradle, pip, Homebrew and others."
         case .projects: "Build outputs and dependencies inside your project folders."
         }

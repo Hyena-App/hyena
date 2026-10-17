@@ -81,10 +81,30 @@ struct MainWindow: View {
         .sheet(isPresented: $model.presentAskSheet) {
             AskHyenaSheet()
         }
+        .task { await openDemoScreen() }
     }
 }
 
 extension MainWindow {
+    /// `--demo --demo-screen <name>` opens a screen directly, for screenshots.
+    private func openDemoScreen() async {
+        guard DemoData.isActive else { return }
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue.contains("main") == true || $0.title == "Hyena" }) {
+            window.setFrame(NSRect(x: 80, y: 80, width: 1320, height: 860), display: true)
+        }
+        while model.lastScan == nil { try? await Task.sleep(for: .milliseconds(100)) }
+        try? await Task.sleep(for: .milliseconds(400))
+        switch DemoData.screen {
+        case "tree", "explain": route = .category(DemoData.screen == "tree" ? .projects : .packageCaches)
+        case "downloads": route = .category(.downloads)
+        case "simulators": route = .category(.simulators)
+        case "ask": model.presentAskSheet = true
+        case "clean": model.presentCleanSheet = true
+        default: break
+        }
+    }
+
     private func goBack() {
         guard let previous = backStack.popLast() else { return }
         if let current = route { forwardStack.append(current) }
@@ -150,21 +170,14 @@ private struct StorageFooter: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "internaldrive")
-                Text("Macintosh HD").font(.caption.weight(.semibold))
-                Spacer()
-            }
-            StorageBar(height: 6)
-            Text("\(space(model.available)) available of \(space(model.capacity))")
-                .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+            StorageSummary(compact: true)
         }
         .padding(12)
         .glassCard(cornerRadius: 12)
     }
 }
 
-/// Used, cleanable-selected and free space in one bar.
+/// Used, ready-to-clean and available space: one bar, with matching labels.
 struct StorageBar: View {
     @Environment(AppModel.self) private var model
     var height: CGFloat = 8
@@ -172,22 +185,67 @@ struct StorageBar: View {
     var body: some View {
         GeometryReader { proxy in
             let total = max(Double(model.capacity), 1)
-            let cleanable = min(Double(model.selectedBytes), Double(model.usedBytes))
+            let cleanable = Double(model.readyToCleanBytes)
             let used = Double(model.usedBytes) - cleanable
-            HStack(spacing: 1.5) {
-                Capsule().fill(.primary.opacity(0.55))
-                    .frame(width: proxy.size.width * used / total)
-                Capsule().fill(Theme.accent.gradient)
-                    .frame(width: max(cleanable > 0 ? 3 : 0, proxy.size.width * cleanable / total))
+            HStack(spacing: 2) {
+                RoundedRectangle(cornerRadius: height / 2).fill(StorageColors.used)
+                    .frame(width: max(0, proxy.size.width * used / total))
+                if cleanable > 0 {
+                    RoundedRectangle(cornerRadius: height / 2).fill(StorageColors.cleanable)
+                        .frame(width: max(4, proxy.size.width * cleanable / total))
+                }
                 Spacer(minLength: 0)
             }
-            .background(.primary.opacity(0.08), in: Capsule())
+            .background(StorageColors.free, in: RoundedRectangle(cornerRadius: height / 2))
         }
         .frame(height: height)
         .animation(.smooth, value: model.selectedBytes)
         .accessibilityElement()
         .accessibilityLabel("Storage")
-        .accessibilityValue("\(space(model.usedBytes)) used, \(space(model.selectedBytes)) selected to clean, \(space(model.available)) available")
+        .accessibilityValue("\(space(model.usedBytes)) used, \(space(model.readyToCleanBytes)) ready to clean, \(space(model.available)) available")
+    }
+}
+
+enum StorageColors {
+    static let used = Color.primary.opacity(0.55)
+    static let cleanable = Theme.accent
+    static let free = Color.primary.opacity(0.1)
+}
+
+/// Three labeled numbers that explain the bar beneath them.
+struct StorageSummary: View {
+    @Environment(AppModel.self) private var model
+    var compact = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 6 : 10) {
+            HStack(alignment: .top, spacing: 0) {
+                stat("Used", space(model.usedBytes), StorageColors.used)
+                Spacer(minLength: 8)
+                stat("Ready to clean", model.lastScan == nil ? "—" : space(model.readyToCleanBytes), StorageColors.cleanable)
+                Spacer(minLength: 8)
+                stat("Available", space(model.available), StorageColors.free, outlined: true)
+            }
+            StorageBar(height: compact ? 6 : 10)
+            Text("of \(space(model.capacity)) on Macintosh HD")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+    private func stat(_ label: String, _ value: String, _ color: Color, outlined: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                Circle().fill(color)
+                    .overlay { if outlined { Circle().strokeBorder(.secondary.opacity(0.6)) } }
+                    .frame(width: 8, height: 8)
+                Text(label).font(.caption).foregroundStyle(.secondary)
+            }
+            Text(value)
+                .font(compact ? .callout.weight(.semibold) : .title3.weight(.semibold))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

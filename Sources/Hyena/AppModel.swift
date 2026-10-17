@@ -93,7 +93,11 @@ final class AppModel {
     private var scanTask: Task<Void, Never>?
     private var rescanTask: Task<Void, Never>?
     private var reminderTimer: Timer?
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults = {
+        guard DemoData.isActive, let demo = UserDefaults(suiteName: "com.hyena.demo") else { return .standard }
+        demo.removePersistentDomain(forName: "com.hyena.demo")
+        return demo
+    }()
 
     init() {
         roots = (defaults.stringArray(forKey: "roots") ?? []).map { URL(fileURLWithPath: $0) }
@@ -107,7 +111,11 @@ final class AppModel {
         defaults.set(true, forKey: "expandedArtifactKindsV3")
         if let saved = defaults.stringArray(forKey: "categories") {
             categories = Set(saved.compactMap(CleanupCategory.init(rawValue:)))
+            if !defaults.bool(forKey: "everydayCategoriesV1") {
+                categories.formUnion([.downloads, .devices, .simulators])
+            }
         }
+        defaults.set(true, forKey: "everydayCategoriesV1")
         if defaults.object(forKey: "minimumAgeDays") != nil { minimumAgeDays = defaults.integer(forKey: "minimumAgeDays") }
         if defaults.object(forKey: "scanOnOpen") != nil { scanOnOpen = defaults.bool(forKey: "scanOnOpen") }
         deleteImmediately = defaults.bool(forKey: "deleteImmediately")
@@ -131,7 +139,7 @@ final class AppModel {
         loading = false
         NotificationRouter.shared.onOpen = { [weak self] in self?.openWindowRequest += 1 }
         refreshStorage()
-        scheduleReminderCheck()
+        if !DemoData.isActive { scheduleReminderCheck() }
         if scanOnOpen { scan() }
     }
 
@@ -211,6 +219,7 @@ final class AppModel {
     func loadChildren(of url: URL) {
         let path = url.path
         guard selection.children[path] == nil, !loadingChildren.contains(path) else { return }
+        if DemoData.isActive { return selection.setChildren(DemoData.children(of: path), of: path) }
         loadingChildren.insert(path)
         Task {
             let entries = (try? await Task.detached(priority: .userInitiated) {
@@ -224,6 +233,11 @@ final class AppModel {
     // MARK: Storage
 
     func refreshStorage() {
+        if DemoData.isActive {
+            capacity = DemoData.capacity
+            available = DemoData.available
+            return
+        }
         let home = FileManager.default.homeDirectoryForCurrentUser
         guard let values = try? home.resourceValues(forKeys: [
             .volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey,
@@ -233,6 +247,8 @@ final class AppModel {
     }
 
     var usedBytes: Int64 { max(0, capacity - available) }
+    /// Selected bytes, never shown as more than what's actually used.
+    var readyToCleanBytes: Int64 { min(selectedBytes, usedBytes) }
 
     // MARK: Locations
 
@@ -285,6 +301,7 @@ final class AppModel {
 
     func scan() {
         guard !busy else { return }
+        if DemoData.isActive { return demoScan() }
         phase = .scanning
         progressText = "Getting ready"
         measured = [:]
@@ -399,6 +416,7 @@ final class AppModel {
 
     func clean() {
         guard !busy else { return }
+        if DemoData.isActive { return demoClean() }
         let plans = selectedFindings.map { finding in
             CleanupPlan(finding: finding, targets: selection.targets(for: finding),
                         bytes: selection.selectedBytes(of: finding))
@@ -463,6 +481,7 @@ final class AppModel {
 
     /// Asks Finder to empty the Trash; works without Full Disk Access.
     func emptyTrash() {
+        if DemoData.isActive { return }
         Task {
             let error = await Privileged.emptyTrashWithFinder()
             if let error { warnings.append(error) }
@@ -638,9 +657,58 @@ final class AppModel {
         defaults.set(try? JSONEncoder().encode(habits), forKey: "habits")
     }
 
+    // MARK: Demo mode (never touches the disk)
+
+    private func demoScan() {
+        phase = .scanning
+        measured = [:]
+        lastResult = nil
+        let sample = DemoData.findings
+        Task {
+            for category in visibleCategories {
+                try? await Task.sleep(for: .milliseconds(140))
+                let items = sample.filter { $0.category == category }
+                measured[category] = (items.reduce(0) { $0 + $1.bytes }, items.count)
+            }
+            findings = sample.sorted { $0.bytes > $1.bytes }
+            if let figma = findings.first(where: { $0.title == "Figma" }) {
+                habits = HabitBook()
+                habits.record(shown: [figma], cleaned: [])
+                habits.record(shown: [figma], cleaned: [])
+            }
+            selection = SelectionModel()
+            selection.reset(selecting: habits.preferredSelection(for: findings))
+            snapshots = [DemoData.baseline]
+            needsFullDiskAccess = false
+            lastScan = Date()
+            phase = .idle
+            updateInsights()
+        }
+    }
+
+    private func demoClean() {
+        let chosen = selectedFindings
+        phase = .cleaning
+        cleanTotal = chosen.count
+        cleanProgress = 0
+        Task {
+            for index in chosen.indices {
+                try? await Task.sleep(for: .milliseconds(40))
+                cleanProgress = index + 1
+            }
+            let moved = chosen.filter { $0.action == .moveToTrash }.reduce(0) { $0 + selection.selectedBytes(of: $1) }
+            let freed = chosen.filter { $0.action == .deletePermanently }.reduce(0) { $0 + selection.selectedBytes(of: $1) }
+            lastResult = CleanResult(count: chosen.count, movedBytes: moved, freedBytes: freed,
+                                     snapshots: chosen.filter { $0.category == .snapshots }.count)
+            findings.removeAll { finding in chosen.contains { $0.id == finding.id } }
+            phase = .idle
+        }
+    }
+
     // MARK: Permissions & system
 
     var hasFullDiskAccess: Bool {
+        if DemoData.isActive { return true }
         let trash = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
         return (try? FileManager.default.contentsOfDirectory(atPath: trash.path)) != nil
     }
@@ -775,7 +843,9 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate, @unc
 }
 
 enum Notifier {
-    static var available: Bool { Bundle.main.bundleIdentifier != nil && Bundle.main.bundleURL.pathExtension == "app" }
+    static var available: Bool {
+        !DemoData.isActive && Bundle.main.bundleIdentifier != nil && Bundle.main.bundleURL.pathExtension == "app"
+    }
 
     static func requestAuthorization() {
         guard available else { return }

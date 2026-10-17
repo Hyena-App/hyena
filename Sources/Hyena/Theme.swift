@@ -16,6 +16,9 @@ enum Theme {
         case .trash: .red
         case .snapshots: .teal
         case .xcode: .blue
+        case .simulators: .cyan
+        case .downloads: .mint
+        case .devices: .pink
         case .packageCaches: .brown
         case .projects: .green
         }

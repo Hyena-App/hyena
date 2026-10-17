@@ -4,7 +4,7 @@ import Foundation
 /// one selects its items (or opens a prompt) for the user to review.
 public struct Suggestion: Identifiable, Equatable, Sendable {
     public enum Kind: String, Codable, CaseIterable, Sendable {
-        case lowDisk, staleProjects, bigCache, growth, habitual, trash, protect
+        case lowDisk, staleProjects, bigCache, growth, habitual, trash, installers, simulators, backups, protect
 
         public var title: String {
             switch self {
@@ -14,6 +14,9 @@ public struct Suggestion: Identifiable, Equatable, Sendable {
             case .growth: "Fast-growing items"
             case .habitual: "Things you usually clean"
             case .trash: "Full Trash"
+            case .installers: "Old installers"
+            case .simulators: "Unusable simulators"
+            case .backups: "Old device backups"
             case .protect: "Items you always keep"
             }
         }
@@ -26,6 +29,9 @@ public struct Suggestion: Identifiable, Equatable, Sendable {
             case .growth: "chart.line.uptrend.xyaxis"
             case .habitual: "repeat"
             case .trash: "trash.fill"
+            case .installers: "arrow.down.circle.fill"
+            case .simulators: "iphone.slash"
+            case .backups: "iphone.gen3"
             case .protect: "lock.shield.fill"
             }
         }
@@ -208,6 +214,43 @@ public enum SuggestionEngine {
                 title: "Trash is holding \(format(trashBytes))",
                 detail: "That space isn’t free until Trash is emptied.",
                 bytes: trashBytes, action: .emptyTrash, priority: 40
+            ))
+        }
+
+        // Installers left in Downloads.
+        let installers = candidates.filter { $0.category == .downloads && $0.recommended }
+        let installerBytes = installers.reduce(0) { $0 + $1.bytes }
+        if installerBytes >= gigabyte / 2 {
+            result.append(Suggestion(
+                id: "installers", kind: .installers,
+                title: "\(installers.count) old installer\(installers.count == 1 ? "" : "s") in Downloads",
+                detail: "Disk images and packages aren’t needed once the app is installed.",
+                bytes: installerBytes, action: .select(installers.map(\.id)), priority: 48
+            ))
+        }
+
+        // Simulators whose runtime is gone can never boot again.
+        let deadSimulators = candidates.filter { $0.category == .simulators && $0.recommended && $0.title != "Simulator caches" }
+        let simulatorBytes = deadSimulators.reduce(0) { $0 + $1.bytes }
+        if simulatorBytes >= gigabyte / 2 {
+            result.append(Suggestion(
+                id: "simulators", kind: .simulators,
+                title: "Remove \(deadSimulators.count) simulator\(deadSimulators.count == 1 ? "" : "s") that can’t run",
+                detail: "Their iOS versions are no longer installed, so they can’t start anymore.",
+                bytes: simulatorBytes, action: .select(deadSimulators.map(\.id)), priority: 47
+            ))
+        }
+
+        // Device backups older than a year: worth a look, never preselected.
+        let yearAgo = now.addingTimeInterval(-365 * 86_400)
+        let oldBackups = candidates.filter { $0.category == .devices && !$0.recommended && $0.modified < yearAgo }
+        let backupBytes = oldBackups.reduce(0) { $0 + $1.bytes }
+        if backupBytes >= 2 * gigabyte {
+            result.append(Suggestion(
+                id: "backups", kind: .backups,
+                title: "Review \(oldBackups.count) device backup\(oldBackups.count == 1 ? "" : "s") over a year old",
+                detail: "Keep any you might restore from. Newer backups or iCloud Backup make these redundant.",
+                bytes: backupBytes, action: .select(oldBackups.map(\.id)), priority: 30
             ))
         }
 

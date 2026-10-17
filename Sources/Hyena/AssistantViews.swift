@@ -274,7 +274,13 @@ struct AskHyenaSheet: View {
         }
         .padding(24)
         .frame(width: 620)
-        .onAppear { focused = true }
+        .onAppear {
+            focused = true
+            if DemoData.screen == "ask" {
+                request = "Clean everything older than a month except my work projects"
+                run()
+            }
+        }
         .animation(.smooth, value: interpretation?.rule)
     }
 

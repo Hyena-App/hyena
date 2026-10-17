@@ -28,16 +28,7 @@ struct MenuBarView: View {
                 .fixedSize()
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(space(model.available)).font(.system(.title2, design: .rounded).weight(.semibold))
-                        .monospacedDigit()
-                    Text("available").foregroundStyle(.secondary)
-                    Spacer()
-                    Text("of \(space(model.capacity))").font(.caption).foregroundStyle(.secondary)
-                }
-                StorageBar()
-            }
+            StorageSummary()
 
             VStack(alignment: .leading, spacing: 10) {
                 if model.scanning {
