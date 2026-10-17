@@ -1,5 +1,7 @@
 # Hyena
 
+Website: [hyena-app.github.io](https://hyena-app.github.io)
+
 A native SwiftUI cleaner for developers' Macs. Lives in the menu bar and opens a full window to review. macOS 14+ (Liquid Glass on macOS 26).
 
 ## Run
@@ -40,3 +42,15 @@ The model never selects or deletes anything on its own. For a quick check of the
 ## Logo
 
 `scripts/generate-logo.py` is the source of truth. It writes `Resources/Hyena.svg` and `Sources/Hyena/LogoArtwork.swift`. The app draws the mark from vectors, and the build script exports the `.icns` from the same code.
+
+## Status
+
+Early and in active development. There's no signed release yet, so build it yourself with the script above. Keep backups, and review before cleaning.
+
+## Contributing
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Report safety bugs privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE)

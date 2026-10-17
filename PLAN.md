@@ -63,17 +63,24 @@ must be visible. Moving files to Trash is not a guaranteed undo mechanism.
 5. Beta hardening: signed/notarized universal distribution, update delivery,
    performance profiling, race-condition review, and permission testing.
 
-## Deferred, not advertised as implemented
+## Since the initial implementation
 
-- Go, Android and framework-specific build artifacts not covered by current
-  marker-based detectors.
-- Broad application-cache cleanup and item-level Trash management.
-- System Data investigation and read-only snapshot education.
-- Snapshot deletion: separate research and permission/security review required.
-- Scheduled scan reminders; never unattended destructive cleaning by default.
-- Optional on-device Apple Foundation Models summaries on supported systems.
-  AI never selects or executes deletion; deterministic functionality comes first.
+Done:
+- Application caches, logs, Application Support caches, leftovers, Trash
+  (item-level, with Full Disk Access) and package-manager caches.
+- Expand-and-check selection down to individual files and folders.
+- Local Time Machine snapshot deletion behind an administrator prompt, with a
+  strict token check before any command runs.
+- Scheduled background checks that notify, never clean.
+- On-device Apple Foundation Models (macOS 26) for explanations, digests,
+  natural-language selection and suggestion ranking. Deterministic fallbacks
+  everywhere; AI never selects or executes deletion on its own.
+
+Still open:
+- Go, Android and other build artifacts not covered by marker-based detectors.
+- System Data investigation.
 - App sandbox/security-scoped bookmark support if distribution requires it.
+- Signed, notarized universal builds and an update channel.
 
 ## Acceptance and release gates
 
