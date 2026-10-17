@@ -9,6 +9,18 @@ enum Entry {
         if let index = arguments.firstIndex(of: "--render-icon"), index + 1 < arguments.count {
             exit(MainActor.assumeIsolated { IconExporter.run(output: arguments[index + 1]) })
         }
+        if arguments.contains("--demo-total") {
+            // Prints what demo mode preselects, so screenshots match the website's numbers.
+            var habits = HabitBook()
+            let findings = DemoData.findings
+            if let figma = findings.first(where: { $0.title == "Figma" }) {
+                habits.record(shown: [figma], cleaned: [])
+                habits.record(shown: [figma], cleaned: [])
+            }
+            let selected = habits.preferredSelection(for: findings).reduce(Int64(0)) { $0 + $1.bytes }
+            print(selected, ByteCountFormatter.string(fromByteCount: selected, countStyle: .file))
+            exit(0)
+        }
         if let index = arguments.firstIndex(of: "--ai-check") {
             // Developer check: exercises the assistant without opening the UI.
             let request = index + 1 < arguments.count ? arguments[index + 1] : "clean old rust builds except work"
