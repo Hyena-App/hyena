@@ -128,28 +128,26 @@ private struct Sidebar: View {
 
     var body: some View {
         List(selection: $route) {
-            NavigationLink(value: Route.overview) {
-                Label("Smart Clean", systemImage: "sparkles")
-            }
+            // Plain tagged rows: the List selection drives the detail column directly.
+            Label("Smart Clean", systemImage: "sparkles")
+                .tag(Route.overview)
 
             ForEach(CleanupGroup.allCases) { group in
                 let items = model.visibleCategories.filter { $0.group == group }
                 if !items.isEmpty {
                     Section(group.title) {
                         ForEach(items) { category in
-                            NavigationLink(value: Route.category(category)) {
-                                Label { Text(category.title) } icon: { CategoryIcon(category: category, size: 20) }
-                            }
-                            .badge(badge(for: category))
+                            Label { Text(category.title) } icon: { CategoryIcon(category: category, size: 20) }
+                                .badge(badge(for: category))
+                                .tag(Route.category(category))
                         }
                     }
                 }
             }
 
             Section {
-                NavigationLink(value: Route.history) {
-                    Label("History", systemImage: "clock")
-                }
+                Label("History", systemImage: "clock")
+                    .tag(Route.history)
             }
         }
         .listStyle(.sidebar)
