@@ -2,6 +2,8 @@
 
 Website: [hyena-app.github.io](https://hyena-app.github.io)
 
+![Hyena's Smart Clean screen](docs/screens/overview.png)
+
 A native SwiftUI cleaner for developers' Macs. Lives in the menu bar and opens a full window to review. macOS 14+ (Liquid Glass on macOS 26).
 
 ## Run
@@ -38,6 +40,10 @@ The model never selects or deletes anything on its own. For a quick check of the
 - Items that belong to running apps are flagged and left unchecked.
 - Apple's privacy-protected caches are skipped, so scanning never triggers macOS permission prompts.
 - Reminders only notify you. Hyena never cleans on its own.
+
+## Screenshots
+
+`zsh scripts/capture-screens.sh` captures the screens in `docs/screens` using demo mode (`--demo`), which runs the real app on sample data and never touches your files.
 
 ## Logo
 

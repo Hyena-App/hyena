@@ -127,6 +127,11 @@ final class AppModel {
         }
         if defaults.object(forKey: "learnHabits") != nil { learnHabits = defaults.bool(forKey: "learnHabits") }
         if defaults.object(forKey: "useOnDeviceModel") != nil { useOnDeviceModel = defaults.bool(forKey: "useOnDeviceModel") }
+        if DemoData.isActive {
+            // A sample project folder, so the "add your folders" prompt (which lists the
+            // real Mac's folders) never appears in screenshots.
+            roots = [URL(fileURLWithPath: NSHomeDirectory() + "/Developer")]
+        }
         if let data = defaults.data(forKey: "habits"), let saved = try? JSONDecoder().decode(HabitBook.self, from: data) {
             habits = saved
         }

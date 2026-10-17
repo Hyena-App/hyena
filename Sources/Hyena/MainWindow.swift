@@ -91,7 +91,9 @@ extension MainWindow {
         guard DemoData.isActive else { return }
         NSApp.appearance = NSAppearance(named: .darkAqua)
         if let window = NSApp.windows.first(where: { $0.identifier?.rawValue.contains("main") == true || $0.title == "Hyena" }) {
-            window.setFrame(NSRect(x: 80, y: 80, width: 1320, height: 860), display: true)
+            // Left side, below the top edge: clear of notification banners and the menu bar.
+            let screen = window.screen?.frame ?? NSRect(x: 0, y: 0, width: 1512, height: 982)
+            window.setFrame(NSRect(x: screen.minX + 16, y: screen.maxY - 130 - 760, width: 1180, height: 760), display: true)
         }
         while model.lastScan == nil { try? await Task.sleep(for: .milliseconds(100)) }
         try? await Task.sleep(for: .milliseconds(400))

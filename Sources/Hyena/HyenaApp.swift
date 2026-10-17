@@ -88,7 +88,8 @@ struct HyenaApp: App {
                 .tint(Theme.accent)
         }
 
-        MenuBarExtra {
+        // Demo mode (screenshots) runs without a menu-bar item so no panel can cover the window.
+        MenuBarExtra(isInserted: .constant(!DemoData.isActive)) {
             MenuBarView()
                 .environment(model)
                 .tint(Theme.accent)
