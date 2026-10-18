@@ -51,13 +51,13 @@ The model never selects or deletes anything on its own. For a quick check of the
 
 ## Download
 
-Tagged releases publish a DMG at [Releases](https://github.com/Hyena-App/hyena/releases). Until the first signed release, build from source as shown above.
+**[Download Hyena for Mac](https://github.com/Hyena-App/hyena/releases/latest/download/Hyena.dmg)**: signed and notarized, macOS 14 or later on Apple silicon. Every version is listed on the [Releases](https://github.com/Hyena-App/hyena/releases) page.
 
 [![CI](https://github.com/Hyena-App/hyena/actions/workflows/ci.yml/badge.svg)](https://github.com/Hyena-App/hyena/actions/workflows/ci.yml)
 
 ## Status
 
-Early and in active development. There's no signed release yet, so build it yourself with the script above. Keep backups, and review before cleaning.
+Early and in active development. Keep backups, and review before cleaning.
 
 ## Contributing
 
