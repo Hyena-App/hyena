@@ -2,3 +2,6 @@
 .DS_Store
 dist/
 .swiftpm/
+.secrets/
+*.p8
+*.p12

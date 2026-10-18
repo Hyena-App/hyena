@@ -99,7 +99,7 @@ Modeled on Get-Lizard's pipeline.
   - `DEVELOPER_ID_CERTIFICATE_P12` (base64) and `DEVELOPER_ID_CERTIFICATE_PASSWORD`: Developer ID signing with hardened runtime and `Resources/Hyena.entitlements`. Without them the build is ad-hoc signed.
   - `NOTARY_KEY_P8` (base64), `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`: notarization with an App Store Connect API key.
   - `HOMEBREW_TAP_DEPLOY_KEY`: write deploy key for the tap. Deploy keys must first be allowed in the org settings.
-- To configure signing, run `zsh scripts/setup-signing-secrets.sh` yourself. It uploads the Developer ID `.p12` and the App Store Connect `.p8` (the same ones Lizard uses: team 6H728M7XQK) straight to the repo secrets without printing them.
+- To configure signing, run `zsh scripts/setup-signing-secrets.sh` yourself. It uploads the Developer ID `.p12` (team 6H728M7XQK, shared with the team's other apps) and Hyena's own App Store Connect team key (`.p8`) straight to the repo secrets without printing them. Keep local copies in `.secrets/` (git-ignored, like `*.p8` and `*.p12`).
 - Local dry run: `VERSION=0.0.0 zsh scripts/release.sh` builds `dist/Hyena-0.0.0.dmg`. It signs with your Developer ID if one is in the keychain; without notarization Gatekeeper still rejects it, which is expected.
 - Never echo secrets, and keep cleanup steps that delete the keychain and key files.
 
