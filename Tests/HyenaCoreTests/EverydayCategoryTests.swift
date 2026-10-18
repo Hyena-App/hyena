@@ -70,4 +70,20 @@ final class EverydayCategoryTests: XCTestCase {
                                         availableBytes: 200_000_000_000, capacityBytes: 500_000_000_000)
         XCTAssertTrue(SuggestionEngine.suggestions(context, preferences: .init()).contains { $0.kind == .installers })
     }
+
+    func testBrowsersAndPasswordManagersAreNeverLeftoversOrCacheSources() async throws {
+        let home = try home()
+        let support = home.appendingPathComponent("Library/Application Support")
+        for folder in ["BraveSoftware/Brave-Browser/Default/Code Cache", "Google/Chrome/Default/GPUCache",
+                       "1Password/Code Cache", "Bitwarden/Cache"] {
+            try file(support.appendingPathComponent(folder).appendingPathComponent("blob"), bytes: 20_000_000, ageDays: 1)
+        }
+        let apps = AppInventory(installedBundleIDs: ["com.brave.Browser", "com.google.Chrome", "com.1password.1password"],
+                                installedNames: ["Brave Browser", "Google Chrome", "1Password"])
+        let report = try await SystemScanner.scan(
+            SystemScanOptions(home: home, categories: [.appSupportCaches, .appLeftovers], apps: apps, minimumBytes: 1),
+            exclusions: []) { _ in }
+        XCTAssertTrue(report.findings.isEmpty, "Found: \(report.findings.map(\.title))")
+        XCTAssertTrue(AppInventory(installedBundleIDs: ["com.brave.Browser"]).isInstalled("BraveSoftware"))
+    }
 }

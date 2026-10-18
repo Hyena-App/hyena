@@ -9,6 +9,7 @@ struct OverviewView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 Hero()
+                if let release = model.updates.available { UpdateBanner(release: release) }
                 if !model.discoveredRoots.isEmpty { DiscoveredFoldersBanner() }
                 if model.lastScan != nil && !model.scanning { StorageChartCard(route: $route) }
                 if !model.insights.isEmpty && !model.scanning { InsightsCard() }
@@ -159,7 +160,7 @@ private struct ResultSummary: View {
         HStack {
             if result.movedBytes > 0 {
                 Button { model.emptyTrash() } label: {
-                    Label("Empty Trash", systemImage: "trash")
+                    Label(model.emptyingTrash ? "Emptying…" : "Empty Trash", systemImage: "trash")
                         .padding(.horizontal, 10).padding(.vertical, 4)
                 }
                 .controlSize(.large)
@@ -334,7 +335,8 @@ struct PermissionBanner: View {
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
-            Button("Empty with Finder") { model.emptyTrash() }.secondaryButton()
+            Button(model.emptyingTrash ? "Emptying…" : "Empty with Finder") { model.emptyTrash() }
+                .secondaryButton().disabled(model.emptyingTrash)
             Button("Open Settings") { model.openFullDiskAccessSettings() }.prominentButton()
         }
         .padding(16)
@@ -393,5 +395,30 @@ private struct DiscoveredFoldersBanner: View {
         }
         .padding(16)
         .glassCard(cornerRadius: 18, tint: Theme.tint(for: .projects))
+    }
+}
+
+private struct UpdateBanner: View {
+    @Environment(AppModel.self) private var model
+    let release: AppRelease
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "arrow.down.circle.fill").font(.title).foregroundStyle(Theme.accent)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Hyena \(release.version) is available").font(.headline)
+                Text(installing ?? "Signed and notarized. It installs in place and restarts Hyena.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Release Notes") { NSWorkspace.shared.open(release.pageURL) }.secondaryButton()
+            Button("Install Update") { model.updates.install() }.prominentButton().disabled(installing != nil)
+        }
+        .padding(16)
+        .glassCard(cornerRadius: 18, tint: Theme.accent)
+    }
+
+    private var installing: String? {
+        if case .installing(let step) = model.updates.state { step } else { nil }
     }
 }

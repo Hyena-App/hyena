@@ -84,6 +84,29 @@ final class SafetyTests: XCTestCase {
         refuses(".npm", .packageCaches)
     }
 
+    func testPasswordManagersAreNeverTouched() {
+        for path in ["Library/Caches/com.1password.1password", "Library/Application Support/1Password/Code Cache",
+                     "Library/Application Support/Bitwarden/Cache", "Library/Caches/com.lastpass.LastPass",
+                     "Library/Application Support/Keeper Password Manager/GPUCache",
+                     "Library/Logs/1Password", "Downloads/1Password-8.dmg"] {
+            for category in CleanupCategory.allCases where ![.snapshots, .projects].contains(category) {
+                refuses(path, category)
+            }
+        }
+    }
+
+    func testBrowserExtensionAndProfileStateIsNeverTouched() {
+        for path in ["Library/Application Support/Google/Chrome/Default/Extensions/aeblfdkhhhdcdjpifhhbdiojplfjncoa",
+                     "Library/Application Support/Google/Chrome/Default/Service Worker/CacheStorage",
+                     "Library/Application Support/Google/Chrome/Default/Local Extension Settings/x",
+                     "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.1password.1password.json",
+                     "Library/Application Support/BraveSoftware/Brave-Browser/Default/IndexedDB"] {
+            refuses(path, .appSupportCaches)
+            refuses(path, .appLeftovers)
+        }
+        allows("Library/Application Support/Code/CachedData", .appSupportCaches)
+    }
+
     func testPermanentDeletionOnlyWhereItRegenerates() {
         allows("Library/Caches/x", .userCaches, permanently: true)
         allows("Developer/app/target", .projects, permanently: true)

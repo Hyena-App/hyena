@@ -62,6 +62,14 @@ struct MenuBarView: View {
             .padding(14)
             .glassCard(cornerRadius: 14)
 
+            if let release = model.updates.available {
+                Button { model.updates.install() } label: {
+                    Label("Install Hyena \(release.version)", systemImage: "arrow.down.circle.fill")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.link)
+            }
+
             if !model.scanning, let top = model.suggestions.first {
                 Button {
                     openMain()

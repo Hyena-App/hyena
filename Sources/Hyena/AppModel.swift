@@ -59,6 +59,7 @@ final class AppModel {
     var digest: String?
     var digestLoading = false
     var presentAskSheet = false
+    let updates = UpdateService()
     /// Project folders found automatically on first launch, shown once in a banner.
     var discoveredRoots: [URL] = []
     var suggestions: [Suggestion] = []
@@ -84,6 +85,7 @@ final class AppModel {
     var cleaningCurrent: Finding?
     var cleanedSoFar: Int64 = 0
     var lastResult: CleanResult?
+    var emptyingTrash = false
 
     // MARK: Storage
     var available: Int64 = 0
@@ -155,6 +157,7 @@ final class AppModel {
         if let data = defaults.data(forKey: "history"),
            let saved = try? JSONDecoder().decode([CleanupRecord].self, from: data) { history = saved }
         loading = false
+        updates.start()
         if !discoveredRoots.isEmpty { defaults.set(roots.map(\.path), forKey: "roots") }
         NotificationRouter.shared.onOpen = { [weak self] in self?.openWindowRequest += 1 }
         refreshStorage()
@@ -326,14 +329,15 @@ final class AppModel {
 
     // MARK: Scanning
 
-    func scan() {
+    /// `keepResult` keeps the "All done" summary while refreshing numbers after a cleanup.
+    func scan(keepResult: Bool = false) {
         guard !busy else { return }
         if DemoData.isActive { return demoScan() }
         phase = .scanning
         progressText = "Getting ready"
         measured = [:]
         warnings = []
-        lastResult = nil
+        if !keepResult { lastResult = nil }
         let roots = roots, exclusions = exclusions, kinds = kinds, age = minimumAgeDays
         let categories = categories
         let running = NSWorkspace.shared.runningApplications
@@ -504,14 +508,18 @@ final class AppModel {
             lastResult = result
             phase = .idle
             refreshStorage()
+            // Re-measure so every number reflects what's left.
+            if result.count > 0 { scan(keepResult: true) }
         }
     }
 
-    /// Asks Finder to empty the Trash; works without Full Disk Access.
+    /// Asks Finder to empty the Trash, off the main thread so the app stays responsive.
     func emptyTrash() {
-        if DemoData.isActive { return }
+        if DemoData.isActive || emptyingTrash { return }
+        emptyingTrash = true
         Task {
             let error = await Privileged.emptyTrashWithFinder()
+            emptyingTrash = false
             if let error { warnings.append(error) }
             if let result = lastResult {
                 lastResult?.freedBytes = result.freedBytes + result.movedBytes
@@ -520,6 +528,7 @@ final class AppModel {
             try? await Task.sleep(for: .seconds(1))
             refreshStorage()
             findings.removeAll { $0.category == .trash }
+            scan(keepResult: true)
         }
     }
 
@@ -633,7 +642,7 @@ final class AppModel {
         case .protect(let ids):
             for finding in findings where ids.contains(finding.id) { acceptProtectSuggestion(finding) }
         }
-        suggestions.removeAll { $0.id == suggestion.id }
+        withAnimation(.smooth) { suggestions.removeAll { $0.id == suggestion.id } }
     }
 
     func snooze(_ suggestion: Suggestion) {
@@ -845,12 +854,12 @@ enum Privileged {
         if let message { throw CleanupError.snapshotFailed(message) }
     }
 
-    @MainActor
+    /// Runs `osascript` in the background: emptying a large Trash can take minutes and
+    /// must never block the interface.
     static func emptyTrashWithFinder() async -> String? {
-        var error: NSDictionary?
-        NSAppleScript(source: "tell application \"Finder\" to empty trash")?.executeAndReturnError(&error)
-        guard let error else { return nil }
-        return "Couldn’t empty Trash: \(error[NSAppleScript.errorMessage] as? String ?? "Finder refused the request.")"
+        let result = try? await UpdateService.runDetached("/usr/bin/osascript", ["-e", "tell application \"Finder\" to empty trash"])
+        guard let result else { return "Couldn’t empty Trash: osascript didn’t run." }
+        return result.status == 0 ? nil : "Couldn’t empty Trash: \(result.output.trimmingCharacters(in: .whitespacesAndNewlines))"
     }
 }
 

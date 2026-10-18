@@ -45,45 +45,12 @@ struct CleanSheet: View {
                 }
             }
 
-            VStack(spacing: 0) {
-                ForEach(groups, id: \.0) { category, count, bytes in
-                    let open = reviewExpanded.contains(category) || groups.count == 1
-                    Button {
-                        withAnimation(.smooth(duration: 0.25)) {
-                            if reviewExpanded.contains(category) { reviewExpanded.remove(category) }
-                            else { reviewExpanded.insert(category) }
-                        }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(open ? 90 : 0))
-                                .opacity(groups.count == 1 ? 0 : 1)
-                            CategoryIcon(category: category, size: 26)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(category.title).font(.body.weight(.medium))
-                                Text(category == .snapshots ? "\(count) snapshot\(count == 1 ? "" : "s")"
-                                                            : "\(count) item\(count == 1 ? "" : "s")")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if isPermanent(category) { Pill(text: "Permanent", color: .red) }
-                            Text(category == .snapshots ? "—" : space(bytes))
-                                .monospacedDigit().font(.body.weight(.semibold))
-                                .frame(minWidth: 70, alignment: .trailing)
-                        }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(groups.count == 1)
-                    .accessibilityHint(open ? "Hide items" : "Show items")
-                    if open { itemList(for: category) }
-                    if category != groups.last?.0 { Divider().padding(.leading, 50) }
-                }
+            // The summary grows with what's expanded and scrolls only past the sheet's height.
+            ViewThatFits(in: .vertical) {
+                categoryList(groups)
+                ScrollView { categoryList(groups) }
             }
-            .glassCard(cornerRadius: 14)
+            .frame(maxHeight: 460)
 
             Toggle(isOn: $model.deleteImmediately) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -140,10 +107,52 @@ struct CleanSheet: View {
         .padding(28)
     }
 
+    private func categoryList(_ groups: [(CleanupCategory, Int, Int64)]) -> some View {
+        VStack(spacing: 0) {
+                ForEach(groups, id: \.0) { category, count, bytes in
+                    let open = reviewExpanded.contains(category) || groups.count == 1
+                    Button {
+                        withAnimation(.smooth(duration: 0.25)) {
+                            if reviewExpanded.contains(category) { reviewExpanded.remove(category) }
+                            else { reviewExpanded.insert(category) }
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(open ? 90 : 0))
+                                .opacity(groups.count == 1 ? 0 : 1)
+                            CategoryIcon(category: category, size: 26)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(category.title).font(.body.weight(.medium))
+                                Text(category == .snapshots ? "\(count) snapshot\(count == 1 ? "" : "s")"
+                                                            : "\(count) item\(count == 1 ? "" : "s")")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if isPermanent(category) { Pill(text: "Permanent", color: .red) }
+                            Text(category == .snapshots ? "—" : space(bytes))
+                                .monospacedDigit().font(.body.weight(.semibold))
+                                .frame(minWidth: 70, alignment: .trailing)
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(groups.count == 1)
+                    .accessibilityHint(open ? "Hide items" : "Show items")
+                    if open { itemList(for: category) }
+                    if category != groups.last?.0 { Divider().padding(.leading, 50) }
+                }
+            }
+        .glassCard(cornerRadius: 14)
+    }
+
     /// Every selected item in a category, by name, so nothing is cleaned unseen.
     private func itemList(for category: CleanupCategory) -> some View {
         let items = model.selectedFindings.filter { $0.category == category }.sorted { $0.bytes > $1.bytes }
-        return ScrollView {
+        return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(items) { finding in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -167,7 +176,6 @@ struct CleanSheet: View {
             }
             .padding(.leading, 60).padding(.trailing, 14).padding(.bottom, 10)
         }
-        .frame(maxHeight: min(CGFloat(items.count) * 34 + 10, 220))
     }
 
     private func isPermanent(_ category: CleanupCategory) -> Bool {

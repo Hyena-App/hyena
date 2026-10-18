@@ -39,6 +39,7 @@ private struct GeneralSettings: View {
             } footer: {
                 Text("Caches, logs and builds are deleted right away. Backups, downloads and leftovers always go to Trash.")
             }
+            UpdatesSection(updates: model.updates)
             Section("Permissions") {
                 LabeledContent("Full Disk Access") {
                     if model.hasFullDiskAccess {
@@ -222,5 +223,63 @@ private struct IntelligenceSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+private struct UpdatesSection: View {
+    let updates: UpdateService
+    @State private var autoCheck = UpdateService.autoCheck
+
+    var body: some View {
+        Section("Updates") {
+            HStack(spacing: 12) {
+                Image(systemName: icon).font(.title2).foregroundStyle(Theme.accent).frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.headline)
+                    Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                switch updates.state {
+                case .available: Button("Install Update") { updates.install() }.prominentButton()
+                case .checking, .installing: ProgressView().controlSize(.small)
+                default: Button("Check Now") { Task { await updates.check() } }
+                }
+            }
+            if case .available(let release) = updates.state, !release.notes.isEmpty {
+                Text(release.notes).font(.callout).foregroundStyle(.secondary).lineLimit(8)
+            }
+            Toggle("Check for updates automatically", isOn: $autoCheck)
+                .onChange(of: autoCheck) { _, on in UpdateService.autoCheck = on }
+        }
+    }
+
+    private var icon: String {
+        switch updates.state {
+        case .available: "arrow.down.circle.fill"
+        case .failed: "exclamationmark.triangle"
+        case .upToDate: "checkmark.seal"
+        default: "arrow.triangle.2.circlepath"
+        }
+    }
+
+    private var title: String {
+        switch updates.state {
+        case .available(let release): "Hyena \(release.version) is available"
+        case .upToDate: "Hyena is up to date"
+        default: "Hyena \(updates.currentVersion)"
+        }
+    }
+
+    private var detail: String {
+        switch updates.state {
+        case .checking: "Checking GitHub…"
+        case .available: "Signed and notarized. It installs in place and restarts Hyena."
+        case .upToDate: "You have the latest version, \(updates.currentVersion)."
+        case .installing(let step): step
+        case .failed(let message): message
+        case .idle:
+            updates.lastChecked.map { "Last checked \($0.formatted(.relative(presentation: .named)))." }
+                ?? "Hyena checks GitHub once a day. Only the version is fetched; nothing about your Mac is sent."
+        }
     }
 }

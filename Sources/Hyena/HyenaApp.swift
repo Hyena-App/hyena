@@ -118,6 +118,12 @@ struct HyenaApp: App {
         .defaultSize(width: 1080, height: 720)
         .windowToolbarStyle(.unified)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    model.openWindowRequest += 1
+                    Task { await model.updates.check() }
+                }
+            }
             CommandGroup(after: .newItem) {
                 Button("Sniff Again") { model.scan() }
                     .keyboardShortcut("r")

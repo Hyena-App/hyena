@@ -23,6 +23,22 @@ public enum SafetyPolicy {
         ".ssh", ".gnupg", ".aws", ".kube", ".config/gh", ".netrc", ".docker/config.json",
     ]
 
+    /// Password managers: nothing whose path mentions one is ever touched, by any
+    /// category, so vaults, extensions and their caches can't break (case-insensitive).
+    static let passwordManagers = [
+        "1password", "agilebits", "bitwarden", "lastpass", "dashlane", "keepass", "enpass", "keeper",
+        "protonpass", "proton pass", "nordpass", "roboform", "authy", "keychain", "strongbox", "secrets",
+    ]
+
+    /// Browser profile and extension state. A folder with one of these names anywhere in
+    /// its path holds logins, extension data or the bridge between an extension and its app.
+    static let browserStateComponents: Set<String> = [
+        "Extensions", "Local Extension Settings", "Sync Extension Settings", "Managed Extension Settings",
+        "Extension State", "Extension Rules", "Extension Scripts", "Service Worker", "IndexedDB",
+        "Local Storage", "Session Storage", "NativeMessagingHosts", "Login Data", "Web Data", "Cookies",
+        "Sync Data", "databases", "storage",
+    ]
+
     /// Personal folders: off limits to everything except project builds, which
     /// often live in ~/Documents and are still protected by their markers.
     static let personalHomeTrees = [
@@ -77,6 +93,13 @@ public enum SafetyPolicy {
         if isWithin(home, path) { throw SafetyViolation.essentialFolder(path) }
         if isWithin(path, "/Users"), !isWithin(path, home), !isTemporary(path) {
             throw SafetyViolation.outsideHome(path)
+        }
+        if category != .projects {
+            let lowered = path.lowercased()
+            if passwordManagers.contains(where: { lowered.contains($0) }) { throw SafetyViolation.passwordManager(path) }
+            if path.split(separator: "/").contains(where: { browserStateComponents.contains(String($0)) }) {
+                throw SafetyViolation.browserData(path)
+            }
         }
         for tree in criticalHomeTrees {
             let protected = inHome(tree)
@@ -142,6 +165,8 @@ public enum SafetyViolation: LocalizedError, Equatable {
     case outsideCategory(String, String)
     case repository(String)
     case permanentNotAllowed(String)
+    case passwordManager(String)
+    case browserData(String)
 
     public var errorDescription: String? {
         switch self {
@@ -151,6 +176,8 @@ public enum SafetyViolation: LocalizedError, Equatable {
         case .sensitiveData: "Refused: this holds personal data, settings or credentials."
         case .outsideCategory(_, let category): "Refused: this is outside the folders \(category) may clean."
         case .repository: "Refused: this folder contains a Git repository."
+        case .passwordManager: "Refused: this belongs to a password manager."
+        case .browserData: "Refused: this holds browser extension or profile data."
         case .permanentNotAllowed(let category): "\(category) items always go to Trash so they can be recovered."
         }
     }

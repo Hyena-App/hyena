@@ -149,7 +149,6 @@ struct SuggestionsCard: View {
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
             .glassCard(cornerRadius: 18)
-            .animation(.smooth, value: model.suggestions)
         }
     }
 }
@@ -186,9 +185,11 @@ struct SuggestionRow: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .accessibilityLabel("More options")
-                Button(actionTitle) { model.act(on: suggestion) }
-                    .secondaryButton()
-                    .disabled(model.busy)
+                Button(model.emptyingTrash && suggestion.action == .emptyTrash ? "Emptying…" : actionTitle) {
+                    model.act(on: suggestion)
+                }
+                .secondaryButton()
+                .disabled(model.busy || model.emptyingTrash)
             }
         }
     }

@@ -59,6 +59,7 @@ Toolchain: Xcode 26 / Swift 6.2 (the Liquid Glass APIs need the macOS 26 SDK). D
 - personal folders (Documents, Desktop, Pictures, Movies, Music, iCloud Drive, CloudStorage) for every category except project builds;
 - anything outside its category's own folders. Each category may only remove things strictly inside its bases (`SafetyPolicy.bases(for:)`), never a base itself;
 - any folder that directly contains `.git`;
+- anything belonging to a password manager (1Password, Bitwarden, LastPass, Keeper and others), and browser profile or extension state (`Extensions`, `Service Worker`, `IndexedDB`, `Local Storage`, `NativeMessagingHosts`, `Login Data`…). Browser folders in Application Support are never scanned for caches or offered as leftovers;
 - permanent deletion except for Trash items and regenerable categories. Backups, downloads and leftovers always go to Trash, even with "Delete immediately" on.
 
 Never bypass it. A new category needs bases in `SafetyPolicy`, plus tests in `SafetyTests` that cover what it may and may not touch. `Hyena --safety-audit` runs the policy over a real scan without deleting anything; it should report 0 refusals.
@@ -101,6 +102,10 @@ Hyena deletes files. A bug that removes the wrong thing is a security issue (see
 - Demo data is tuned so the preselected total is exactly 47.84 GB, matching the website's story (`--demo-total` checks it).
 - `capture-screens.sh` positions the window clear of notification banners, hides the cursor in a corner, crops and rounds corners. Look at every capture before publishing: real paths, usernames, tooltips or notifications must never leak. Screen capture returns black while the screen is locked.
 - `cacheDisplay`-style self-capture does not render SwiftUI layers; don't use it.
+
+## Updates
+
+`UpdateService` (modeled on Lizard's) checks `api.github.com/repos/Hyena-App/hyena/releases/latest` a minute after launch and then daily. Users can turn this off in Settings; only the version is fetched. It installs with `brew` when Homebrew manages Hyena; otherwise it downloads the DMG and verifies it before swapping the app and relaunching. The check requires a strict signature, `TeamIdentifier=6H728M7XQK` and Gatekeeper acceptance. Development builds (outside /Applications) only open the release page. The tap also ships `brew hyena-update`. Version logic lives in `HyenaCore/AppRelease.swift` and is tested.
 
 ## CI and releases
 

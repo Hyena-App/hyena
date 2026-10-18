@@ -36,7 +36,15 @@ public struct AppInventory: Sendable {
             let product = name.split(separator: ".").last.map(String.init) ?? name
             return installedNames.contains { $0.replacingOccurrences(of: " ", with: "") == product }
         }
-        return installedNames.contains { $0 == name || $0.contains(name) || name.contains($0) }
+        if installedNames.contains(where: { $0 == name || $0.contains(name) || name.contains($0) }) { return true }
+        // Vendor folders: "BraveSoftware" belongs to com.brave.Browser, "Google" to com.google.Chrome.
+        let generic: Set<String> = ["apple", "com", "app", "mac", "macos", "inc", "co", "io"]
+        return installedBundleIDs.contains { id in
+            let parts = id.split(separator: ".")
+            guard parts.count >= 2 else { return false }
+            let vendor = String(parts[1])
+            return vendor.count >= 4 && !generic.contains(vendor) && name.contains(vendor)
+        }
     }
 }
 
@@ -99,7 +107,7 @@ public enum SystemScanner {
     static let appSupportCacheNames: Set<String> = [
         "Cache", "Caches", "CachedData", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache",
         "DawnWebGPUCache", "GrShaderCache", "GraphiteDawnCache", "ShaderCache", "CachedExtensionVSIXs",
-        "CacheStorage", "Crashpad", "logs",
+        "Crashpad", "logs",
     ]
 
     /// Application Support folders that belong to macOS or hold irreplaceable
@@ -112,6 +120,14 @@ public enum SystemScanner {
         "ScreenTime", "Shortcuts", "Wallpaper", "WallpaperAgent", "FamilyCircle", "Siri",
         "CoreParsec", "ControlCenter", "default.store", "identityservicesd", "locationaccessstored",
         "homeenergyd", "tipsd", "Ubiquity", "Stickies", "Notes", "ProApps", "Maps",
+    ]
+
+    /// Browser folders in Application Support hold profiles, saved passwords, extensions and the
+    /// bridges to password managers. Hyena never cleans inside them and never calls them leftovers.
+    static let browserFolders: Set<String> = [
+        "Google", "BraveSoftware", "Microsoft Edge", "Microsoft", "Mozilla", "Firefox", "Arc", "Chromium",
+        "Vivaldi", "com.operasoftware.Opera", "com.operasoftware.OperaGX", "Orion", "Zen", "Sidekick", "Comet",
+        "Yandex", "Thorium", "Floorp", "Waterfox", "LibreWolf",
     ]
 
     public static func scan(
@@ -390,7 +406,10 @@ public enum SystemScanner {
     }
 
     static func isCandidateAppFolder(_ name: String) -> Bool {
-        !name.hasPrefix("com.apple.") && !name.hasPrefix(".") && !protectedAppSupport.contains(name)
+        let lowered = name.lowercased()
+        return !name.hasPrefix("com.apple.") && !name.hasPrefix(".") && !protectedAppSupport.contains(name)
+            && !browserFolders.contains(name)
+            && !SafetyPolicy.passwordManagers.contains(where: { lowered.contains($0) })
     }
 
     /// Cache folders up to four levels inside an app's support folder.
@@ -404,6 +423,11 @@ public enum SystemScanner {
             if enumerator.level > 4 { enumerator.skipDescendants(); continue }
             guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
                   values.isDirectory == true, values.isSymbolicLink != true else { continue }
+            // Never look inside browser extension or profile state.
+            if SafetyPolicy.browserStateComponents.contains(url.lastPathComponent) {
+                enumerator.skipDescendants()
+                continue
+            }
             if appSupportCacheNames.contains(url.lastPathComponent) {
                 found.append(url)
                 enumerator.skipDescendants()
