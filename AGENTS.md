@@ -105,7 +105,7 @@ Modeled on Get-Lizard's pipeline.
 
 ## Brand assets
 
-`zsh scripts/render-brand.sh` renders `brand/social-preview.png` (1280×640, repo social preview), `brand/banner.png` (1600×600, org profile) and `brand/avatar.png` (1024², org picture, edge to edge via `--render-avatar`) from `brand/card.html` with headless Chrome. GitHub has no API for avatars or social previews, so upload those two in the web UI. The banner lives in `Hyena-App/.github/profile/hyena.png`.
+`Hyena --render-glyph <file.png> <px>` exports the template menu-bar glyph. `zsh scripts/render-brand.sh` renders `brand/social-preview.png` (1280×640, repo social preview), `brand/banner.png` (1600×600, org profile) and `brand/avatar.png` (1024², org picture, edge to edge via `--render-avatar`) from `brand/card.html` with headless Chrome. GitHub has no API for avatars or social previews, so upload those two in the web UI. The banner lives in `Hyena-App/.github/profile/hyena.png`.
 
 ## Logo
 

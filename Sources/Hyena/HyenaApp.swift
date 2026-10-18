@@ -6,6 +6,16 @@ import HyenaCore
 enum Entry {
     static func main() {
         let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--render-glyph"), index + 2 < arguments.count,
+           let size = Double(arguments[index + 2]) {
+            // Template (black on transparent) menu-bar glyph at a pixel size, for brand kits.
+            exit(MainActor.assumeIsolated {
+                let image = HyenaGlyph.image(pointSize: size)
+                guard let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+                      let png = rep.representation(using: .png, properties: [:]) else { return 1 }
+                return (try? png.write(to: URL(fileURLWithPath: arguments[index + 1]))) == nil ? 1 : 0
+            })
+        }
         if let index = arguments.firstIndex(of: "--render-avatar"), index + 1 < arguments.count {
             exit(MainActor.assumeIsolated { IconExporter.avatar(output: arguments[index + 1]) })
         }
