@@ -37,7 +37,7 @@ private struct GeneralSettings: View {
             Section {
                 Toggle("Delete immediately instead of moving to Trash", isOn: $model.deleteImmediately)
             } footer: {
-                Text("Frees space right away, but items can’t be recovered with Put Back.")
+                Text("Caches, logs and builds are deleted right away. Backups, downloads and leftovers always go to Trash.")
             }
             Section("Permissions") {
                 LabeledContent("Full Disk Access") {
@@ -107,6 +107,8 @@ private struct LocationsSettings: View {
                 }
                 HStack {
                     Button("Add Folder…") { model.addFolder() }
+                    Button("Find Again") { model.rediscoverProjectFolders() }
+                        .help("Look for folders that hold several projects and add any that are missing")
                     ForEach(model.suggestedRoots.prefix(3), id: \.path) { url in
                         Button("+ ~/\(url.lastPathComponent)") { model.addRoot(url) }
                     }
@@ -114,7 +116,7 @@ private struct LocationsSettings: View {
             } header: {
                 Text("Project folders")
             } footer: {
-                Text("Hyena looks inside these for build outputs and dependencies, matched by project markers like Cargo.toml or package.json.")
+                Text("Found automatically on first launch, and yours to edit. Hyena looks inside for build outputs and dependencies, matched by markers like Cargo.toml or package.json.")
             }
             Section {
                 Picker("Skip folders changed in the last", selection: $model.minimumAgeDays) {

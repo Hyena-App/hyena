@@ -86,7 +86,7 @@ public enum SystemScanner {
         .init(path: "Library/Caches/CocoaPods", title: "CocoaPods", recommended: true),
         .init(path: "Library/Caches/ms-playwright", title: "Playwright browsers", recommended: false),
         .init(path: ".nuget/packages", title: "NuGet packages", recommended: true),
-        .init(path: ".pub-cache", title: "Dart pub cache", recommended: false),
+        .init(path: ".pub-cache/hosted", title: "Dart pub packages", recommended: false),
         .init(path: ".cache/pre-commit", title: "pre-commit", recommended: true),
         .init(path: ".cache/huggingface", title: "Hugging Face models", recommended: false),
     ]

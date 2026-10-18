@@ -5,11 +5,14 @@ public struct CleanupPlan: Sendable {
     /// Exact paths to remove: the finding itself or its checked descendants.
     public let targets: [URL]
     public let bytes: Int64
+    /// The user asked to skip Trash. Honored only where `SafetyPolicy` allows it.
+    public let deleteImmediately: Bool
 
-    public init(finding: Finding, targets: [URL], bytes: Int64) {
+    public init(finding: Finding, targets: [URL], bytes: Int64, deleteImmediately: Bool = false) {
         self.finding = finding
         self.targets = targets
         self.bytes = bytes
+        self.deleteImmediately = deleteImmediately
     }
 }
 
@@ -72,10 +75,15 @@ public enum CleanupExecutor {
                             try Scanner.validateSubpath(target, of: finding, exclusions: exclusions)
                         }
                     }
+                    // Backups, downloads and leftovers always go to Trash, whatever the user chose.
+                    let permanent = finding.action == .deletePermanently
+                        || (plan.deleteImmediately && SafetyPolicy.allowsImmediateDeletion(finding.category))
                     var failed = false
                     for target in plan.targets {
                         do {
-                            if finding.action == .deletePermanently {
+                            // Re-checked right before each removal, however the plan was built.
+                            try SafetyPolicy.check(target, category: finding.category, permanently: permanent)
+                            if permanent {
                                 try handlers.deletePermanently(target)
                             } else {
                                 try handlers.moveToTrash(target)
@@ -86,7 +94,7 @@ public enum CleanupExecutor {
                         }
                     }
                     if failed { continue }
-                    if finding.action == .deletePermanently {
+                    if permanent {
                         outcome.freedBytes += plan.bytes
                     } else {
                         outcome.movedBytes += plan.bytes

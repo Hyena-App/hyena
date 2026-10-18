@@ -92,7 +92,7 @@ struct MenuBarView: View {
                 HStack {
                     Button("Review Items…") { openMain() }
                     Spacer()
-                    Button("Scan Again") { model.scan() }.disabled(model.busy)
+                    Button("Sniff Again") { model.scan() }.disabled(model.busy)
                 }
                 .buttonStyle(.link)
                 .font(.callout)

@@ -373,6 +373,9 @@ final class ScannerTests: XCTestCase, @unchecked Sendable {
             apps: AppInventory(runningBundleIDs: ["com.example.Editor"]), minimumBytes: 1
         )
         let report = try await SystemScanner.scan(options, exclusions: []) { _ in }
+        let realHome = SafetyPolicy.home
+        SafetyPolicy.home = home
+        defer { SafetyPolicy.home = realHome }
         let byName = Dictionary(uniqueKeysWithValues: report.findings.map { ($0.url.lastPathComponent, $0) })
         XCTAssertEqual(byName["com.example.Editor"]?.recommended, false)
         XCTAssertEqual(byName["com.example.Idle"]?.recommended, true)

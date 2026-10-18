@@ -22,6 +22,39 @@ enum Entry {
         if let index = arguments.firstIndex(of: "--render-icon"), index + 1 < arguments.count {
             exit(MainActor.assumeIsolated { IconExporter.run(output: arguments[index + 1]) })
         }
+        if arguments.contains("--discover-projects") {
+            // Read-only: which folders first-launch discovery would add.
+            for url in ProjectFolders.discover() {
+                print(url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+            }
+            exit(0)
+        }
+        if arguments.contains("--safety-audit") {
+            // Read-only: scans like the app, then runs every finding through SafetyPolicy.
+            // Nothing is moved or deleted.
+            Task {
+                let installed = AppCatalog.installed()
+                let apps = AppInventory(installedBundleIDs: installed.ids, installedNames: installed.names)
+                let categories = Set(CleanupCategory.allCases).subtracting([.projects])
+                var findings = (try? await SystemScanner.scan(
+                    SystemScanOptions(categories: categories, apps: apps), exclusions: []) { _ in })?.findings ?? []
+                let roots = (UserDefaults.standard.stringArray(forKey: "roots") ?? []).map { URL(fileURLWithPath: $0) }
+                if !roots.isEmpty {
+                    findings += (try? await Scanner.scan(roots: roots, exclusions: [], kinds: Set(ArtifactKind.allCases),
+                                                         minimumAgeDays: 0) { _ in })?.findings ?? []
+                }
+                var refused: [String] = []
+                for finding in findings {
+                    do { try Scanner.validateForCleanup(finding, exclusions: []) }
+                    catch { refused.append("\(finding.category.rawValue): \(finding.url.path) — \(error.localizedDescription)") }
+                }
+                print("Findings checked: \(findings.count)")
+                print("Refused by the safety policy: \(refused.count)")
+                refused.prefix(40).forEach { print("  " + $0) }
+                exit(0)
+            }
+            RunLoop.main.run()
+        }
         if arguments.contains("--demo-total") {
             // Prints what demo mode preselects, so screenshots match the website's numbers.
             var habits = HabitBook()
@@ -86,7 +119,7 @@ struct HyenaApp: App {
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(after: .newItem) {
-                Button("Scan Again") { model.scan() }
+                Button("Sniff Again") { model.scan() }
                     .keyboardShortcut("r")
                     .disabled(model.busy)
                 Button("Clean Now…") { model.presentCleanSheet = true }

@@ -59,6 +59,8 @@ final class AppModel {
     var digest: String?
     var digestLoading = false
     var presentAskSheet = false
+    /// Project folders found automatically on first launch, shown once in a banner.
+    var discoveredRoots: [URL] = []
     var suggestions: [Suggestion] = []
     var suggestionsUsedModel = false
     var suggestionsLoading = false
@@ -130,6 +132,14 @@ final class AppModel {
         }
         if defaults.object(forKey: "learnHabits") != nil { learnHabits = defaults.bool(forKey: "learnHabits") }
         if defaults.object(forKey: "useOnDeviceModel") != nil { useOnDeviceModel = defaults.bool(forKey: "useOnDeviceModel") }
+        // First launch: find folders full of projects so builds are scanned without setup.
+        // Runs once; the user's own edits are never overridden afterwards.
+        if !DemoData.isActive, roots.isEmpty, !defaults.bool(forKey: "projectFoldersDiscovered") {
+            let found = ProjectFolders.discover()
+            roots = found
+            discoveredRoots = found
+            defaults.set(true, forKey: "projectFoldersDiscovered")
+        }
         if DemoData.isActive {
             // A sample project folder, so the "add your folders" prompt (which lists the
             // real Mac's folders) never appears in screenshots.
@@ -145,6 +155,7 @@ final class AppModel {
         if let data = defaults.data(forKey: "history"),
            let saved = try? JSONDecoder().decode([CleanupRecord].self, from: data) { history = saved }
         loading = false
+        if !discoveredRoots.isEmpty { defaults.set(roots.map(\.path), forKey: "roots") }
         NotificationRouter.shared.onOpen = { [weak self] in self?.openWindowRequest += 1 }
         refreshStorage()
         if !DemoData.isActive { scheduleReminderCheck() }
@@ -300,6 +311,14 @@ final class AppModel {
         }
     }
 
+    /// Looks for project folders again and adds any that aren't listed yet.
+    func rediscoverProjectFolders() {
+        let found = ProjectFolders.discover().filter { url in !roots.contains { PathPolicy.contains($0, url) } }
+        guard !found.isEmpty else { return }
+        roots = (roots + found).sorted { $0.path < $1.path }
+        discoveredRoots = found
+    }
+
     func protect(_ url: URL) {
         guard !exclusions.contains(url) else { return }
         exclusions.append(url)
@@ -427,11 +446,10 @@ final class AppModel {
         if DemoData.isActive { return demoClean() }
         let plans = selectedFindings.map { finding in
             CleanupPlan(finding: finding, targets: selection.targets(for: finding),
-                        bytes: selection.selectedBytes(of: finding))
+                        bytes: selection.selectedBytes(of: finding), deleteImmediately: deleteImmediately)
         }.filter { !$0.targets.isEmpty || $0.finding.action != .moveToTrash }
         guard !plans.isEmpty else { return }
         let exclusions = exclusions
-        let permanent = deleteImmediately
         phase = .cleaning
         cleanProgress = 0
         cleanedSoFar = 0
@@ -441,13 +459,7 @@ final class AppModel {
 
         Task {
             let handlers = CleanupHandlers(
-                moveToTrash: { url in
-                    if permanent {
-                        try FileManager.default.removeItem(at: url)
-                    } else {
-                        try FileManager.default.trashItem(at: url, resultingItemURL: nil)
-                    }
-                },
+                moveToTrash: { url in try FileManager.default.trashItem(at: url, resultingItemURL: nil) },
                 deletePermanently: { url in try FileManager.default.removeItem(at: url) },
                 deleteSnapshot: { token in
                     do { try Snapshots.delete(token) } catch { try Privileged.deleteSnapshot(token) }
@@ -467,8 +479,8 @@ final class AppModel {
 
             var result = CleanResult(
                 count: outcome.handledCount,
-                movedBytes: permanent ? 0 : outcome.movedBytes,
-                freedBytes: outcome.freedBytes + (permanent ? outcome.movedBytes : 0),
+                movedBytes: outcome.movedBytes,
+                freedBytes: outcome.freedBytes,
                 snapshots: outcome.snapshotsDeleted,
                 failures: outcome.failures
             )

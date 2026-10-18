@@ -6,6 +6,7 @@ struct CleanSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var started = false
+    @State private var reviewExpanded: Set<CleanupCategory> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,7 +31,7 @@ struct CleanSheet: View {
             let count = model.selectedCount(in: category)
             return count > 0 ? (category, count, model.selectedBytes(in: category)) : nil
         }
-        let permanent = groups.contains { $0.0.isPermanent } || model.deleteImmediately
+        let permanent = groups.contains { isPermanent($0.0) }
         let running = model.selectedFindings.filter { $0.note?.hasPrefix("Open now") == true || $0.note?.contains("is open") == true }
 
         return VStack(alignment: .leading, spacing: 18) {
@@ -46,24 +47,39 @@ struct CleanSheet: View {
 
             VStack(spacing: 0) {
                 ForEach(groups, id: \.0) { category, count, bytes in
-                    HStack(spacing: 12) {
-                        CategoryIcon(category: category, size: 26)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(category.title).font(.body.weight(.medium))
-                            Text(category == .snapshots ? "\(count) snapshot\(count == 1 ? "" : "s")"
-                                                        : "\(count) item\(count == 1 ? "" : "s")")
-                                .font(.caption).foregroundStyle(.secondary)
+                    let open = reviewExpanded.contains(category) || groups.count == 1
+                    Button {
+                        withAnimation(.smooth(duration: 0.25)) {
+                            if reviewExpanded.contains(category) { reviewExpanded.remove(category) }
+                            else { reviewExpanded.insert(category) }
                         }
-                        Spacer()
-                        if category.isPermanent || model.deleteImmediately {
-                            Pill(text: "Permanent", color: .red)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(open ? 90 : 0))
+                                .opacity(groups.count == 1 ? 0 : 1)
+                            CategoryIcon(category: category, size: 26)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(category.title).font(.body.weight(.medium))
+                                Text(category == .snapshots ? "\(count) snapshot\(count == 1 ? "" : "s")"
+                                                            : "\(count) item\(count == 1 ? "" : "s")")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if isPermanent(category) { Pill(text: "Permanent", color: .red) }
+                            Text(category == .snapshots ? "—" : space(bytes))
+                                .monospacedDigit().font(.body.weight(.semibold))
+                                .frame(minWidth: 70, alignment: .trailing)
                         }
-                        Text(category == .snapshots ? "—" : space(bytes))
-                            .monospacedDigit().font(.body.weight(.semibold))
-                            .frame(minWidth: 70, alignment: .trailing)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 12)
+                    .buttonStyle(.plain)
+                    .disabled(groups.count == 1)
+                    .accessibilityHint(open ? "Hide items" : "Show items")
+                    if open { itemList(for: category) }
                     if category != groups.last?.0 { Divider().padding(.leading, 50) }
                 }
             }
@@ -72,7 +88,7 @@ struct CleanSheet: View {
             Toggle(isOn: $model.deleteImmediately) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Delete immediately")
-                    Text("Frees space right away instead of moving items to Trash. This can’t be undone.")
+                    Text("Caches, logs and builds are deleted right away. Backups, downloads and leftovers still go to Trash so you can recover them.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -122,6 +138,40 @@ struct CleanSheet: View {
             }
         }
         .padding(28)
+    }
+
+    /// Every selected item in a category, by name, so nothing is cleaned unseen.
+    private func itemList(for category: CleanupCategory) -> some View {
+        let items = model.selectedFindings.filter { $0.category == category }.sorted { $0.bytes > $1.bytes }
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(items) { finding in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack(spacing: 6) {
+                                Text(finding.title).font(.callout).lineLimit(1).truncationMode(.middle)
+                                if model.state(of: finding) == .mixed { Pill(text: "Partial", color: Theme.accent) }
+                            }
+                            if finding.hasKnownSize {
+                                Text(finding.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        if finding.hasKnownSize {
+                            Text(space(model.selection.selectedBytes(of: finding)))
+                                .font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .padding(.leading, 60).padding(.trailing, 14).padding(.bottom, 10)
+        }
+        .frame(maxHeight: min(CGFloat(items.count) * 34 + 10, 220))
+    }
+
+    private func isPermanent(_ category: CleanupCategory) -> Bool {
+        category.isPermanent || (model.deleteImmediately && SafetyPolicy.allowsImmediateDeletion(category))
     }
 
     // MARK: Progress

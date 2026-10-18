@@ -9,6 +9,7 @@ struct OverviewView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 Hero()
+                if !model.discoveredRoots.isEmpty { DiscoveredFoldersBanner() }
                 if model.lastScan != nil && !model.scanning { StorageChartCard(route: $route) }
                 if !model.insights.isEmpty && !model.scanning { InsightsCard() }
                 if !model.scanning { SuggestionsCard() }
@@ -106,6 +107,15 @@ private struct Hero: View {
                         }
                         .controlSize(.extraLarge)
                         .secondaryButton()
+                        Button { model.scan() } label: {
+                            Label("Sniff Again", systemImage: "arrow.clockwise")
+                                .font(.title3)
+                                .padding(.horizontal, 8).padding(.vertical, 6)
+                        }
+                        .controlSize(.extraLarge)
+                        .secondaryButton()
+                        .help("Measure everything again (⌘R)")
+                        .disabled(model.busy)
                     }
                     .padding(.top, 6)
                 } else {
@@ -155,7 +165,7 @@ private struct ResultSummary: View {
                 .controlSize(.large)
                 .prominentButton()
             }
-            Button("Scan Again") { model.scan() }
+            Button("Sniff Again") { model.scan() }
                 .controlSize(.large)
                 .secondaryButton()
         }
@@ -359,5 +369,29 @@ struct ProjectFoldersPrompt: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard(cornerRadius: 18)
+    }
+}
+
+/// Shown once after Hyena finds project folders by itself.
+private struct DiscoveredFoldersBanner: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        HStack(spacing: 14) {
+            CategoryIcon(category: .projects, size: 36)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Hyena found your projects").font(.headline)
+                Text("Scanning " + model.discoveredRoots
+                        .map { $0.path.replacingOccurrences(of: NSHomeDirectory(), with: "~") }
+                        .joined(separator: ", ") + " for build files. Add or remove folders any time.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Button("Edit…") { NSApp.activate(ignoringOtherApps: true); openSettings() }.secondaryButton()
+            Button("Got It") { withAnimation(.smooth) { model.discoveredRoots = [] } }.prominentButton()
+        }
+        .padding(16)
+        .glassCard(cornerRadius: 18, tint: Theme.tint(for: .projects))
     }
 }

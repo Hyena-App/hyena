@@ -24,6 +24,8 @@ open dist/Hyena.app              # run the real app (scans the real disk)
 open -n dist/Hyena.app --args --demo --demo-screen=tree   # demo mode, sample data
 dist/Hyena.app/Contents/MacOS/Hyena --ai-check "old rust builds except work"   # exercise the on-device model
 dist/Hyena.app/Contents/MacOS/Hyena --demo-total          # bytes demo mode preselects (should be 47.84 GB)
+dist/Hyena.app/Contents/MacOS/Hyena --safety-audit     # read-only: run the safety policy over a real scan
+dist/Hyena.app/Contents/MacOS/Hyena --discover-projects # read-only: folders first-launch discovery would add
 zsh scripts/capture-screens.sh   # real screenshots → docs/screens (needs an unlocked screen)
 python3 scripts/generate-logo.py # regenerate the logo (never edit its outputs)
 ```
@@ -50,6 +52,17 @@ Toolchain: Xcode 26 / Swift 6.2 (the Liquid Glass APIs need the macOS 26 SDK). D
 | `docs/screens/` | Real screenshots from demo mode, used by the README and website. |
 
 ## Safety rules (non-negotiable)
+
+**`SafetyPolicy` (`Sources/HyenaCore/Safety.swift`) is the last line of defense.** It runs on every target right before it is trashed or deleted, inside `Scanner.validateForCleanup`, `validateSubpath` and again in `CleanupExecutor`. It doesn't trust the scanner. It refuses:
+- macOS system trees (`/System`, `/Library`, `/Applications`, `/usr`, `/bin`, `/etc`, `/opt`, `/private/var/db`…), path traversal, other users' folders, the home folder and any ancestor of a protected folder;
+- credentials and app data for every category (Keychains, Preferences, Mail, Messages, Containers, Group Containers, `~/.ssh`, `~/.aws`…);
+- personal folders (Documents, Desktop, Pictures, Movies, Music, iCloud Drive, CloudStorage) for every category except project builds;
+- anything outside its category's own folders. Each category may only remove things strictly inside its bases (`SafetyPolicy.bases(for:)`), never a base itself;
+- any folder that directly contains `.git`;
+- permanent deletion except for Trash items and regenerable categories. Backups, downloads and leftovers always go to Trash, even with "Delete immediately" on.
+
+Never bypass it. A new category needs bases in `SafetyPolicy`, plus tests in `SafetyTests` that cover what it may and may not touch. `Hyena --safety-audit` runs the policy over a real scan without deleting anything; it should report 0 refusals.
+
 
 Hyena deletes files. A bug that removes the wrong thing is a security issue (see `SECURITY.md`).
 

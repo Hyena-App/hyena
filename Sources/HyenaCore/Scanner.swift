@@ -147,6 +147,10 @@ public enum Scanner {
             guard Snapshots.isValidToken(token) else { throw CleanupError.unsafePath }
             return
         }
+        // Independent last-line checks: system, personal and category fences.
+        try SafetyPolicy.check(finding.url, category: finding.category,
+                               permanently: finding.action == .deletePermanently)
+        if finding.action == .deletePermanently, finding.category != .trash { throw CleanupError.unsafePath }
         guard finding.url != finding.root,
               PathPolicy.contains(finding.root, finding.url),
               !PathPolicy.hasSymlinkComponent(finding.url),
@@ -175,6 +179,7 @@ public enum Scanner {
 
     /// Checks a path the user kept selected inside a partially selected finding.
     public static func validateSubpath(_ url: URL, of finding: Finding, exclusions: [URL]) throws {
+        try SafetyPolicy.check(url, category: finding.category, permanently: finding.action == .deletePermanently)
         guard url != finding.url,
               PathPolicy.contains(finding.url, url),
               !PathPolicy.hasSymlinkComponent(url),

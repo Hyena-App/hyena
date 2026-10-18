@@ -68,9 +68,9 @@ struct MainWindow: View {
                     }
                 } else {
                     Button { model.scan() } label: {
-                        Label("Scan Again", systemImage: "arrow.clockwise")
+                        Label("Sniff Again", systemImage: "arrow.clockwise")
                     }
-                    .help("Scan again (⌘R)")
+                    .help("Sniff again: measure everything again (⌘R)")
                     .disabled(model.busy)
                 }
             }
@@ -291,6 +291,21 @@ struct CleanBar: View {
             if model.phase == .cleaning {
                 ProgressView(value: Double(model.cleanProgress), total: Double(max(model.cleanTotal, 1)))
                     .frame(width: 120)
+            }
+            if model.scanning {
+                Button("Stop") { model.cancelScan() }
+                    .controlSize(.large)
+                    .secondaryButton()
+            } else {
+                Button { model.scan() } label: {
+                    Label("Sniff Again", systemImage: "arrow.clockwise")
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 3)
+                }
+                .controlSize(.large)
+                .secondaryButton()
+                .help("Measure everything again (⌘R)")
+                .disabled(model.busy)
             }
             Button {
                 model.presentCleanSheet = true
